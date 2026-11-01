@@ -164,20 +164,31 @@ export async function saveOrder(c, body, user, orderId = null) {
   if (saved.pago_anticipado && Number(saved.pago_anticipado.importe) > Number(saved.monto_total)) {
     fail('El total del pedido no puede quedar por debajo del pago anticipado');
   }
-  if (advanceAmount) {
-    if (saved.pago_anticipado) fail('Este pedido ya tiene un pago anticipado',409);
-    if (advanceAmount > Number(saved.monto_total)) fail('El pago anticipado no puede superar el total del pedido');
-    const currentAccount = await account(c,saved.fk_idcuenta,true);
-    if (advanceAmount > currentAccount.saldo) fail('El pago anticipado no puede superar el saldo de la cuenta');
-    const formId = id(advance.fk_idforma_pago);
-    const form = await c.query('SELECT 1 FROM forma_pago WHERE idforma_pago=$1 AND activo AND es_ingreso',[formId]);
-    if (!form.rowCount) fail('Seleccioná una forma de pago activa para ingresos');
-    const cash = await c.query("SELECT idcaja_gral FROM caja_gral WHERE estado='abierta' FOR UPDATE");
-    if (!cash.rowCount) fail('Abrí una caja antes de cobrar');
-    await c.query("INSERT INTO pago(fk_idcuenta,fk_idpedido,fk_idforma_pago,importe,estado,creado_por) VALUES($1,$2,$3,$4,'aprobado',$5)",
-      [saved.fk_idcuenta,saved.idpedido,formId,advanceAmount,user.login]);
-  }
+  if (advanceAmount) await registerAdvance(c,saved,advance,advanceAmount,user);
   return { pedido: await order(c,p.idpedido) };
+}
+// Registra el pago anticipado de un pedido; compartido por el guardado y por el cobro posterior.
+async function registerAdvance(c, saved, advance, amount, user) {
+  if (saved.pago_anticipado) fail('Este pedido ya tiene un pago anticipado',409);
+  if (amount > Number(saved.monto_total)) fail('El pago anticipado no puede superar el total del pedido');
+  const currentAccount = await account(c,saved.fk_idcuenta,true);
+  if (amount > currentAccount.saldo) fail('El pago anticipado no puede superar el saldo de la cuenta');
+  const formId = id(advance.fk_idforma_pago);
+  const form = await c.query('SELECT 1 FROM forma_pago WHERE idforma_pago=$1 AND activo AND es_ingreso',[formId]);
+  if (!form.rowCount) fail('Seleccioná una forma de pago activa para ingresos');
+  const cash = await c.query("SELECT idcaja_gral FROM caja_gral WHERE estado='abierta' FOR UPDATE");
+  if (!cash.rowCount) fail('Abrí una caja antes de cobrar');
+  await c.query("INSERT INTO pago(fk_idcuenta,fk_idpedido,fk_idforma_pago,importe,estado,creado_por) VALUES($1,$2,$3,$4,'aprobado',$5)",
+    [saved.fk_idcuenta,saved.idpedido,formId,amount,user.login]);
+}
+export async function addAdvance(c, orderId, body, user) {
+  const amount = integer(body.importe,'Pago anticipado',1);
+  const first = await order(c,orderId);
+  const a = await account(c,first.fk_idcuenta,true);
+  const current = await order(c,orderId);
+  if (current.estado !== 'en_preparacion' || a.estado !== 'abierta') fail('El pedido ya no admite pago anticipado',409);
+  await registerAdvance(c,current,body,amount,user);
+  return { pedido: await order(c,orderId) };
 }
 async function sellable(c, productId) {
   const p = (await c.query('SELECT * FROM producto_menu WHERE idproducto_menu=$1 AND activo AND es_vender FOR SHARE',[productId])).rows[0];

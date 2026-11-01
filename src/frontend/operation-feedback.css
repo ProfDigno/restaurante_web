@@ -12,3 +12,16 @@
 .operation-feedback-actions :focus-visible { outline: 3px solid #efb49e; outline-offset: 3px; }
 @keyframes operation-feedback-spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .operation-feedback-spinner { animation: none; border-color: #4c976d; border-right-color: transparent; } }
+
+.operation-feedback-charge { display: grid; gap: 12px; margin-top: 18px; text-align: left; }
+.operation-feedback-charge label { display: grid; gap: 6px; color: #52665e; font-size: 13px; font-weight: 600; }
+.operation-feedback-charge select, .operation-feedback-charge input { width: 100%; box-sizing: border-box; padding: 10px 12px; border: 1px solid #d9e2dd; border-radius: 8px; background: #fff; color: #20342c; font: inherit; font-size: 15px; }
+.operation-feedback-charge input { text-align: right; font-weight: 700; }
+.operation-feedback-charge input:invalid { border-color: #c83f3f; background: #fff6f5; }
+.operation-feedback-charge small { color: #52665e; text-align: right; }
+.operation-feedback-charge-error { padding: 9px 12px; border-radius: 8px; background: #fff0ee; color: #a92f2f; font-size: 13px; }
+.operation-feedback-charge .operation-feedback-actions { margin-top: 6px; }
+.operation-feedback-charge-button { min-width: 138px; }
+.operation-feedback-actions button:disabled { opacity: .5; cursor: not-allowed; }
+.operation-feedback-dialog { width: min(100%, 470px); }
+.operation-feedback-accept, .operation-feedback-print, .operation-feedback-charge-button { min-width: 120px; }

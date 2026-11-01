@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../config/database.js';
 import { requireAuth, requireCurrentForm } from '../middleware/auth.js';
-import { operation, account, order, saveOrder, finishOrder, collect, cancellationPreview, cancelOrder, integer, id, fail } from '../services/pedidos.js';
+import { operation, account, order, saveOrder, addAdvance, finishOrder, collect, cancellationPreview, cancelOrder, integer, id, fail } from '../services/pedidos.js';
 import { renderPedidoTicket, renderPedidoTicketPage } from '../services/pedido-ticket.js';
 
 const router=Router();
@@ -85,6 +85,7 @@ router.get('/:id/ticket',async(req,res,next)=>{
 router.get('/:id/anulacion',formAccess,route(req=>cancellationPreview(pool,req.params.id)));
 router.get('/:id',route(req=>order(pool,req.params.id)));
 router.put('/:id',route(req=>operation(req,c=>saveOrder(c,req.body,req.user,req.params.id))));
+router.post('/:id/pago-anticipado',route(req=>operation(req,c=>addAdvance(c,req.params.id,req.body,req.user))));
 router.post('/:id/terminar',route(req=>operation(req,c=>finishOrder(c,req.params.id,id(req.body.version_web),req.user))));
 router.post('/:id/anular',formAccess,route(req=>operation(req,c=>cancelOrder(c,req.params.id,req.body,req.user))));
 export default router;
