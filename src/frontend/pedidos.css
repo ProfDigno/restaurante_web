@@ -1,4 +1,4 @@
-.orders-page { display: grid; gap: 8px; }
+﻿.orders-page { display: grid; gap: 8px; }
 .orders-page .page-intro { margin-bottom: 0; }
 .order-actions, .order-fields { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
 .delivery-type-field { display: grid; gap: 7px; min-width: min(100%, 390px); }
@@ -158,3 +158,111 @@
 .order-list-actions .order-action-icon{display:inline-flex;align-items:center;justify-content:center;width:34px;height:34px;min-width:34px;padding:0;color:inherit}
 .order-list-actions .order-action-icon svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .order-list-actions .order-action-icon:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+/* Pantalla de pedido tipo punto de venta: productos en tarjetas y carrito fijo a la derecha. */
+.order-header { gap: 10px; padding: 12px 14px; }
+.order-header-controls { flex-wrap: wrap; align-items: end; }
+.order-header-actions { margin-left: 0; }
+.order-header .delivery-type-field { min-width: min(100%, 330px); gap: 4px; }
+.order-header .delivery-option { min-height: 38px; padding: 6px 10px; }
+.order-header .client-picker { flex: 1 1 360px; flex-wrap: nowrap; align-items: end; }
+.order-header .client-picker label { flex: 1 1 200px; }
+.order-header .client-picker .new-client-button { min-height: 38px; padding: 8px 12px; }
+.client-current { display: grid; gap: 2px; min-width: 0; font-size: 12px; color: #52665e; }
+.client-current strong { color: #20342c; font-size: 13px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.order-editor-layout { display: block; height: max(560px, calc(100dvh - 250px)); }
+.order-workspace { grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); gap: 12px; }
+.order-side { display: flex; flex-direction: column; gap: 10px; min-height: 0; height: 100%; }
+.order-side .order-detail { flex: 1 1 auto; height: auto; min-height: 0; padding: 14px; }
+.order-side .order-detail h3 { margin-bottom: 10px; }
+.order-side .order-checkout { flex: 0 0 auto; display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; box-shadow: none; }
+.checkout-more > summary { cursor: pointer; font-size: 12px; font-weight: 700; color: #52665e; }
+.checkout-more > summary em { color: #a54b2b; font-style: normal; }
+.checkout-more[open] > summary { margin-bottom: 10px; }
+.order-side .checkout-editor { grid-template-columns: 1fr; gap: 10px; }
+.order-side .checkout-summary { display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+.order-side .checkout-summary .order-actions { justify-content: stretch; }
+.order-side .checkout-summary .order-actions .primary { flex: 1 1 100%; min-height: 46px; font-size: 15px; font-weight: 800; }
+.order-side .checkout-summary .order-actions .secondary { flex: 1 1 auto; }
+.product-picker { padding: 6px 8px 0 0; }
+.product-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; padding: 8px 6px 8px 2px; }
+.product-grid-empty { grid-column: 1 / -1; margin: 0; color: #52665e; }
+.product-card { position: relative; display: flex; flex-direction: column; min-height: 96px; border: 1px solid #dfe7e3; border-radius: 10px; background: #fff; }
+.product-card:hover:not(.out-of-stock) { border-color: #efb49e; background: #fff6f1; }
+.product-card.out-of-stock { background: #fff0f0; }
+.product-card-main { flex: 1; display: flex; flex-direction: column; align-items: flex-start; gap: 3px; padding: 10px 10px 30px; border: 0; border-radius: 10px; background: transparent; text-align: left; font: inherit; cursor: pointer; }
+.product-card-main strong { font-size: 13px; line-height: 1.25; overflow-wrap: anywhere; }
+.product-card-main small { color: #52665e; font-size: 10px; }
+.product-card-price { position: absolute; left: 10px; bottom: 8px; color: #a54b2b; font-weight: 800; font-size: 13px; }
+.product-card-qty { position: absolute; top: -7px; right: -7px; display: grid; place-items: center; min-width: 22px; height: 22px; padding: 0 6px; border-radius: 11px; background: #d26d4f; color: #fff; font-size: 12px; font-weight: 800; }
+.product-card-edit { position: absolute; right: 6px; bottom: 6px; padding: 3px 7px; border: 1px solid #dfe7e3; border-radius: 6px; background: #fff; color: #52665e; font: inherit; font-size: 10px; cursor: pointer; }
+@media (max-width: 900px) { .order-editor-layout { height: auto; } .order-side { height: auto; } .order-side .order-detail { height: auto; max-height: 420px; } }
+@media (max-width: 600px) { .order-header .client-picker { flex-wrap: wrap; } .product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+
+/* Ajuste 2: encabezado en una sola fila y resumen mÃ¡s compacto para que Guardar quede visible. */
+.order-header .delivery-type-field { min-width: 290px; }
+.order-header .delivery-option { font-size: 11px; padding: 6px 8px; }
+.order-header .client-picker { flex: 1 1 300px; }
+.order-header .client-picker label { flex: 1 1 140px; }
+.order-header .order-fields label:not(.courier-field) select { max-width: 150px; }
+.client-current { max-width: 130px; }
+.order-header-controls { flex-wrap: nowrap; }
+.order-header-controls > .order-status { margin-left: 0; padding: 8px 12px; white-space: nowrap; }
+.order-editor-layout { height: max(480px, calc(100dvh - 262px)); }
+.order-side .order-totals { display: flex; flex-wrap: wrap; gap: 2px 14px; margin: 0; font-size: 12px; color: #52665e; }
+.order-side .order-totals > span { gap: 6px; }
+.order-side .order-totals .grand-total { flex: 1 1 100%; justify-content: space-between; padding-top: 6px; font-size: 20px; color: #20342c; }
+@media (max-width: 1100px) { .order-header-controls { flex-wrap: wrap; } }
+
+/* Ajuste 3: mÃ¡s lugar para buscar cliente. */
+.order-header .delivery-option span { white-space: nowrap; }
+.order-header .delivery-type-field { min-width: 310px; }
+.order-header .client-picker .new-client-button span { display: none; }
+.order-header .client-picker .new-client-button { padding: 8px 10px; }
+.order-header .client-picker label { flex: 1 1 170px; min-width: 150px; }
+.order-header .order-fields label:not(.courier-field) select { max-width: 125px; }
+.client-current { max-width: 110px; }
+
+/* Ajuste 4: carrito sin scroll horizontal (el precio unitario ya se ve en la tarjeta del producto). */
+.order-side .order-detail .catalog-table th:nth-child(3), .order-side .order-detail .catalog-table td:nth-child(3) { display: none; }
+.order-side .order-detail .catalog-table th:nth-child(1), .order-side .order-detail .catalog-table td:nth-child(1) { width: 38%; }
+.order-side .order-detail .catalog-table th:nth-child(2), .order-side .order-detail .catalog-table td:nth-child(2) { width: 27%; }
+.order-side .order-detail .catalog-table th:nth-child(4), .order-side .order-detail .catalog-table td:nth-child(4) { width: 27%; }
+.order-side .order-detail .catalog-table th:nth-child(5), .order-side .order-detail .catalog-table td:nth-child(5) { width: 8%; }
+.order-side .order-detail .catalog-table-wrap { overflow-x: hidden; }
+.order-side .order-detail .remove-line { width: 22px; }
+
+/* Ajuste 5: mÃ¡s espacio para ver productos (filtros y tarjetas mÃ¡s compactos). */
+.order-editor-layout { height: max(480px, calc(100dvh - 266px)); }
+.order-workspace .order-picker { padding: 10px; gap: 6px; }
+.order-picker .category-buttons, .order-picker .unit-buttons { gap: 6px; padding-bottom: 4px; scrollbar-width: thin; }
+.order-picker .category-buttons .category-option, .order-picker .unit-buttons .unit-option { padding: 5px 10px; font-size: 11px; gap: 6px; }
+.order-picker .category-buttons .category-option input, .order-picker .unit-buttons .unit-option input { width: 14px; height: 14px; min-width: 14px; }
+.product-picker .search-box { margin-bottom: 6px; }
+.product-picker .search-box input { padding: 7px 10px; }
+.product-picker { padding-top: 2px; }
+.product-grid { grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); gap: 8px; padding-top: 6px; }
+.product-card { min-height: 78px; }
+.product-card-main { padding: 8px 8px 26px; }
+.product-card-main strong { font-size: 12px; }
+.product-card-price { left: 8px; bottom: 6px; font-size: 12px; }
+
+
+/* Ajuste 6: buscador alineado con las tarjetas, detalle del pedido con más filas visibles y resumen compacto. */
+.product-picker { padding-right: 0; }
+.product-grid { padding-left: 0; padding-right: 0; }
+.product-picker .search-box { width: 100%; max-width: none; }
+.order-side .order-detail { padding: 12px 14px; }
+.order-side .order-detail h3 { margin-bottom: 8px; }
+.order-side .order-detail .catalog-table th, .order-side .order-detail .catalog-table td { padding-top: 6px; padding-bottom: 6px; }
+.order-side .order-detail .catalog-table th:nth-child(1), .order-side .order-detail .catalog-table td:nth-child(1) { width: 46%; }
+.order-side .order-detail .catalog-table th:nth-child(2), .order-side .order-detail .catalog-table td:nth-child(2) { width: 22%; }
+.order-side .order-detail .catalog-table th:nth-child(4), .order-side .order-detail .catalog-table td:nth-child(4) { width: 24%; }
+.order-side .order-detail .catalog-table th:nth-child(5), .order-side .order-detail .catalog-table td:nth-child(5) { width: 8%; }
+.order-side .order-detail .catalog-table td small { display: block; line-height: 1.2; }
+.order-side .order-detail .ingredient-added-row td, .order-side .order-detail .ingredient-removed-row td { padding-top: 3px; padding-bottom: 3px; }
+.order-side .order-checkout { padding: 8px 12px; gap: 6px; }
+.order-side .checkout-summary.is-new { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; }
+.order-side .checkout-summary.is-new .order-totals .grand-total { font-size: 18px; padding-top: 2px; }
+.order-side .checkout-summary.is-new .order-actions { justify-content: flex-end; }
+.order-side .checkout-summary.is-new .order-actions .primary { flex: 0 0 auto; min-width: 170px; min-height: 44px; }
