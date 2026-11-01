@@ -1,0 +1,17 @@
+.mesa-history { margin-top: 36px; }
+.mesa-history-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 18px; }
+.mesa-history-heading h2 { margin: 0 0 6px; font-size: 20px; }
+.mesa-history-controls { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; color: var(--muted); font-size: 13px; }
+.mesa-history-controls label { display: flex; align-items: center; gap: 8px; }
+.mesa-history-controls select { border: 1px solid var(--line); border-radius: 8px; padding: 9px; background: #fff; color: var(--ink); }
+.mesa-history-table { min-width: 760px; }
+.mesa-history-actions { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.mesa-history-actions .mesa-history-icon-button { display: inline-flex; align-items: center; justify-content: center; width: 34px; height: 34px; min-width: 34px; padding: 0; color: var(--ink); }
+.mesa-history-actions .mesa-history-icon-button svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.mesa-history-actions .mesa-history-icon-button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mesa-history-actions a, .mesa-history-print { text-decoration: none; white-space: nowrap; }
+.mesa-history-modal { width: min(100%, 650px); max-height: 85vh; overflow: auto; }
+.mesa-history-modal h3 { margin: 20px 0 8px; font-size: 15px; }
+.mesa-history-modal ul { margin: 0; padding-left: 20px; font-size: 13px; line-height: 1.8; }
+.mesa-history-total { display: flex; justify-content: space-between; border-top: 1px solid var(--line); padding-top: 15px; }
+@media (max-width: 620px) { .mesa-history-heading { align-items: flex-start; flex-direction: column; } .mesa-history-table th:first-child, .mesa-history-table td:first-child { display: table-cell; } }

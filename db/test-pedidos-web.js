@@ -1,0 +1,107 @@
+import assert from 'node:assert/strict';
+import { pool } from '../src/config/database.js';
+import { account, saveOrder, finishOrder, collect, cancelOrder, cancellationPreview, integer } from '../src/services/pedidos.js';
+
+const c=await pool.connect();let count=0;
+const ok=(condition,message)=>{assert.ok(condition,message);console.log('OK',++count,message);};
+async function reject(action, pattern){await c.query('SAVEPOINT caso');try{await action();assert.fail('Debía rechazar la operación');}catch(e){assert.match(e.message,pattern);count++;console.log('OK',count,'Rechazo:',e.message);}finally{await c.query('ROLLBACK TO SAVEPOINT caso');await c.query('RELEASE SAVEPOINT caso');}}
+try {
+ await c.query('BEGIN');
+ await c.query('SELECT pg_advisory_xact_lock(7092026)');
+ const user={sub:(await c.query('SELECT idusuario FROM usuario ORDER BY idusuario LIMIT 1')).rows[0].idusuario,login:'PRUEBA_PEDIDOS'};
+ const token=Date.now().toString();
+ const zone=(await c.query("INSERT INTO zona_cliente(codigo,nombre,precio_delivery,creado_por) VALUES($1,$1,0,$2) RETURNING *",['TEST-'+token,user.login])).rows[0];
+ const customer=(await c.query('INSERT INTO cliente(nombre_completo,ruc,direccion,telefono,fk_idzona_cliente,creado_por) VALUES($1,$2,$3,$4,$5,$6) RETURNING *',['TEST '+token,token,'Dirección prueba',token,zone.idzona_cliente,user.login])).rows[0];
+ const courier=(await c.query('INSERT INTO entregador_delivery(nombre_completo,creado_por) VALUES($1,$2) RETURNING *',['TEST Entregador '+token,user.login])).rows[0];
+ const cat=(await c.query('SELECT idcategoria_menu FROM categoria_menu LIMIT 1')).rows[0].idcategoria_menu;
+ const group=(await c.query('SELECT idgrupo_menu FROM grupo_menu LIMIT 1')).rows[0].idgrupo_menu;
+ const unit=(await c.query('SELECT idunidad_menu FROM unidad_menu LIMIT 1')).rows[0].idunidad_menu;
+ const product=(await c.query('INSERT INTO producto_menu(nombre,fk_idcategoria_menu,fk_idgrupo_menu,fk_idunidad_menu,precio_venta,precio_compra,stock_actual,es_descontar_stock,creado_por) VALUES($1,$2,$3,$4,10000,2000,100,true,$5) RETURNING *',['TEST '+token,cat,group,unit,user.login])).rows[0];
+ const mesa=(await c.query(`INSERT INTO mesa(numero,capacidad,fk_idubicacion_mesa,creado_por)
+   SELECT (COALESCE(MAX(m.numero),0)+1)::smallint,4,u.idubicacion_mesa,$1
+   FROM mesa m CROSS JOIN LATERAL (SELECT idubicacion_mesa FROM ubicacion_mesa WHERE activo ORDER BY orden LIMIT 1) u
+   GROUP BY u.idubicacion_mesa RETURNING *`,[user.login])).rows[0];
+ const body=(type='BUSCAR')=>({tipo_entrega:type,fk_idcliente:customer.idcliente,fk_idmesa:type==='COMER_ACA'?mesa.idmesa:null,monto_descuento:0,detalles:[{fk_idproducto_menu:product.idproducto_menu,cantidad:2}]});
+ const stock=async()=>Number((await c.query('SELECT stock_actual FROM producto_menu WHERE idproducto_menu=$1',[product.idproducto_menu])).rows[0].stock_actual);
+ const importedZero=(await c.query('SELECT idproducto_menu FROM producto_menu WHERE idproducto_menu=0 AND activo AND es_vender')).rows[0];
+ if(importedZero){const zeroOrder=(await saveOrder(c,{...body(),detalles:[{fk_idproducto_menu:0,cantidad:1}]},user)).pedido;ok(zeroOrder.detalles[0].fk_idproducto_menu===0,'Producto importado con ID 0 se puede agregar al pedido');}
+ await reject(()=>saveOrder(c,{...body(),fk_idcliente:''},user),/Seleccioná un cliente activo/);
+ await reject(()=>saveOrder(c,{...body(),detalles:[]},user),/Agregá/);
+ await reject(()=>saveOrder(c,{...body(),fk_identregador_delivery:courier.identregador_delivery},user),/Solo los pedidos Delivery/);
+ assert.throws(()=>integer('1.5','Monto'),/entero/);count++;
+ assert.throws(()=>integer('-1','Monto'),/entero/);count++;
+ let p=(await saveOrder(c,body('DELIVERY'),user)).pedido;
+ ok(p.detalles[0].nombre_mostrado?.includes(' - TEST '),'Detalle guardado conserva el nombre mostrado con categoría');
+ ok(p.detalles[0].unidad,'Detalle guardado incluye el nombre de la unidad');
+ ok(p.estado==='en_preparacion'&&Number(p.monto_total)===20000&&Number(p.monto_delivery)===0,'Guardar delivery gratuito en COCINA');
+ ok(p.direccion_entrega==='Dirección prueba'&&p.zona_codigo===zone.codigo,'Snapshot histórico de delivery');
+ ok(p.fk_identregador_delivery===null,'Delivery puede guardarse sin entregador');
+ await reject(()=>saveOrder(c,{...p,fk_identregador_delivery:2147483647},user,p.idpedido),/entregador no existe o está inactivo/);
+ p=(await saveOrder(c,{...p,fk_identregador_delivery:courier.identregador_delivery},user,p.idpedido)).pedido;
+ ok(p.fk_identregador_delivery===courier.identregador_delivery&&p.entregador_nombre===courier.nombre_completo,'Entregador asignado y visible al reabrir');
+ await c.query('UPDATE entregador_delivery SET activo=false WHERE identregador_delivery=$1',[courier.identregador_delivery]);
+ const legacyEdit={...p,observacion:'Sin cambiar entregador'};delete legacyEdit.fk_identregador_delivery;
+ p=(await saveOrder(c,legacyEdit,user,p.idpedido)).pedido;
+ ok(p.fk_identregador_delivery===courier.identregador_delivery,'Entregador inactivo histórico no bloquea otras ediciones');
+ p=(await saveOrder(c,{...p,fk_identregador_delivery:null},user,p.idpedido)).pedido;
+ ok(p.fk_identregador_delivery===null,'Entregador se puede quitar en COCINA');
+ await reject(()=>saveOrder(c,{...p,fk_identregador_delivery:courier.identregador_delivery},user,p.idpedido),/entregador no existe o está inactivo/);
+ ok(await stock()===98,'Stock consumido una vez al guardar');
+ await reject(()=>collect(c,p.fk_idcuenta,{pagos:[]},user),/terminá/);
+ const edited=(await saveOrder(c,{...p,detalles:p.detalles.map(d=>({...d,cantidad:3})),monto_descuento:5000,motivo_descuento:'Promoción'},user,p.idpedido)).pedido;
+ ok(Number(edited.monto_total)===25000&&await stock()===97,'Edición diferencial y descuento');
+ await reject(()=>saveOrder(c,p,user,p.idpedido),/cambió/);
+ await c.query('UPDATE producto_menu SET precio_venta=15000 WHERE idproducto_menu=$1',[product.idproducto_menu]);
+ ok(Number(edited.detalles[0].precio_venta)===10000,'Precio histórico conservado');
+ await finishOrder(c,p.idpedido);
+ await reject(()=>saveOrder(c,edited,user,p.idpedido),/no admite/);
+ let box=(await c.query("SELECT idcaja_gral FROM caja_gral WHERE estado='abierta'")).rows[0];
+ const form=(await c.query("SELECT idforma_pago FROM forma_pago WHERE activo AND es_ingreso AND upper(btrim(nombre))='EFECTIVO'")).rows[0];
+ if(!box){await reject(()=>collect(c,p.fk_idcuenta,{pagos:[{fk_idforma_pago:form.idforma_pago,importe:1000}]},user),/caja/);box=(await c.query('SELECT abrir_caja_gral($1,$2) AS idcaja_gral',[JSON.stringify({[form.idforma_pago]:0}),user.login])).rows[0];}
+ await collect(c,p.fk_idcuenta,{pagos:[{fk_idforma_pago:form.idforma_pago,importe:10000}]},user);
+ ok((await account(c,p.fk_idcuenta)).saldo===15000,'Pago parcial');
+ await reject(()=>collect(c,p.fk_idcuenta,{pagos:[{fk_idforma_pago:form.idforma_pago,importe:16000}]},user),/saldo/);
+ await collect(c,p.fk_idcuenta,{pagos:[{fk_idforma_pago:form.idforma_pago,importe:15000}]},user);
+ const paidExternal=await account(c,p.fk_idcuenta);
+ ok(paidExternal.estado==='cerrada'&&paidExternal.saldo===0&&paidExternal.pedidos[0].estado==='pagado','Pago completo cierra cuenta externa y marca el pedido PAGADO');
+ const preview=await cancellationPreview(c,p.idpedido);
+ await reject(()=>cancelOrder(c,p.idpedido,{motivo:'Prueba',devoluciones:[]},user),/distribución/);
+ await cancelOrder(c,p.idpedido,{motivo:'Prueba devolución',devoluciones:preview.cuenta.pagos.map(x=>({fk_idpago:x.idpago,importe:x.disponible}))},user);
+ ok(Number((await account(c,p.fk_idcuenta)).cobrado)===0&&await stock()===100,'Anulación histórica devuelve pagos y stock');
+ await reject(()=>cancelOrder(c,p.idpedido,{motivo:'Repetida'},user),/ya fue anulado/);
+ const first=(await saveOrder(c,body('COMER_ACA'),user)).pedido;
+ const second=(await saveOrder(c,body('COMER_ACA'),user)).pedido;
+ ok(first.fk_idcuenta===second.fk_idcuenta,'Varios pedidos comparten cuenta');
+ await finishOrder(c,first.idpedido);await finishOrder(c,second.idpedido);
+ await collect(c,first.fk_idcuenta,{pagos:[{fk_idforma_pago:form.idforma_pago,importe:60000}]},user);
+ const paidTable=await account(c,first.fk_idcuenta);
+ ok((await c.query('SELECT estado FROM mesa WHERE idmesa=$1',[mesa.idmesa])).rows[0].estado==='libre'&&paidTable.pedidos.every(x=>x.estado==='pagado'),'Mesa liberada y todos sus pedidos marcados PAGADO');
+ const next=(await saveOrder(c,body('COMER_ACA'),user)).pedido;
+ const before=await cancellationPreview(c,first.idpedido);
+ await cancelOrder(c,first.idpedido,{motivo:'Devolución de un pedido',devoluciones:[{fk_idpago:before.cuenta.pagos[0].idpago,importe:30000}]},user);
+ const historical=await account(c,first.fk_idcuenta);
+ ok(Number(historical.total)===30000&&Number(historical.cobrado)===30000&&historical.pedidos.find(x=>x.idpedido===second.idpedido).estado==='pagado','Devolución parcial conserva otro pedido pagado y el pago original');
+ ok((await c.query('SELECT estado FROM mesa WHERE idmesa=$1',[mesa.idmesa])).rows[0].estado==='ocupado'&&next.fk_idcuenta!==first.fk_idcuenta,'No modifica la nueva ocupación');
+ ok((await c.query('SELECT count(*)::int AS n FROM caja_item WHERE fk_iddevolucion_pago IS NOT NULL AND creado_por=$1',[user.login])).rows[0].n===3,'Cada devolución tiene movimiento de caja');
+ const zero=(await saveOrder(c,{...body(),monto_descuento:30000,motivo_descuento:'Cortesía'},user)).pedido;
+ await finishOrder(c,zero.idpedido);
+ await collect(c,zero.fk_idcuenta,{pagos:[]},user);
+ const freeAccount=await account(c,zero.fk_idcuenta);
+ ok(freeAccount.estado==='cerrada'&&freeAccount.saldo===0&&freeAccount.pagos.length===0&&freeAccount.pedidos[0].estado==='pagado','Cortesía: cierre cero sin pagos ficticios y pedido PAGADO');
+ await reject(()=>saveOrder(c,{...body(),monto_descuento:30001,motivo_descuento:'Excesivo'},user),/descuento/i);
+ await reject(()=>saveOrder(c,{...body(),detalles:[{fk_idproducto_menu:2147483647,cantidad:1}]},user),/producto/i);
+ await reject(()=>saveOrder(c,{...body(),detalles:[{fk_idproducto_menu:product.idproducto_menu,cantidad:1000}]},user),/Stock insuficiente/);
+ const twoLines=(await saveOrder(c,{...body(),detalles:[...body().detalles,...body().detalles]},user)).pedido;
+ const removed=(await saveOrder(c,{...twoLines,detalles:[twoLines.detalles[0]]},user,twoLines.idpedido)).pedido;
+ ok(Number(removed.monto_total)===30000&&(await c.query("SELECT count(*)::int n FROM detalle_pedido WHERE fk_idpedido=$1 AND estado='cancelado'",[removed.idpedido])).rows[0].n===1,'Eliminar línea guardada conserva anulación y recalcula');
+ const baseUnit=(await c.query('SELECT idunidad_medida FROM unidad_medida LIMIT 1')).rows[0].idunidad_medida;
+ const ingredient=(await c.query('INSERT INTO ingrediente(nombre,fk_idunidad_medida,stock_actual,creado_por) VALUES($1,$2,100,$3) RETURNING *',['TEST RECETA '+token,baseUnit,user.login])).rows[0];
+ await c.query('INSERT INTO receta(fk_idproducto_menu,fk_idingrediente,fk_idunidad_medida,cantidad,creado_por) VALUES($1,$2,$3,2,$4)',[product.idproducto_menu,ingredient.idingrediente,baseUnit,user.login]);
+ const beforeRecipe=await stock();
+ const recipeOrder=(await saveOrder(c,body(),user)).pedido;
+ ok(await stock()===beforeRecipe&&Number((await c.query('SELECT stock_actual FROM ingrediente WHERE idingrediente=$1',[ingredient.idingrediente])).rows[0].stock_actual)===96,'Producto con receta consume ingredientes, nunca doble stock');
+ await cancelOrder(c,recipeOrder.idpedido,{motivo:'Anulación receta'},user);
+ ok(Number((await c.query('SELECT stock_actual FROM ingrediente WHERE idingrediente=$1',[ingredient.idingrediente])).rows[0].stock_actual)===100,'Anulación restituye ingredientes de receta');
+ await c.query('SET CONSTRAINTS ALL IMMEDIATE');
+ console.log(`PASS: ${count} comprobaciones. Datos de prueba revertidos.`);
+} catch(e){console.error(e);process.exitCode=1;}finally{await c.query('ROLLBACK');c.release();await pool.end();}

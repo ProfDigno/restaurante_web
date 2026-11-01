@@ -1,0 +1,14 @@
+.operation-feedback-backdrop { position: fixed; inset: 0; z-index: 110; display: grid; place-items: center; padding: 20px; background: #17201fa6; }
+.operation-feedback-dialog { width: min(100%, 420px); padding: 30px 28px; border-radius: 18px; background: #fff; box-shadow: 0 24px 80px #17201f40; text-align: center; outline: none; }
+.operation-feedback-icon { display: grid; place-items: center; width: 64px; height: 64px; margin: 0 auto 18px; border-radius: 50%; background: #fff0e8; color: #cb5c3f; }
+.operation-feedback-dialog.success .operation-feedback-icon { background: #eaf6ec; color: #318253; }
+.operation-feedback-dialog.loading .operation-feedback-icon { background: #eef3ed; color: #668778; }
+.operation-feedback-icon svg { width: 34px; height: 34px; }
+.operation-feedback-spinner { width: 32px; height: 32px; border: 3px solid #cadbd0; border-top-color: #4c976d; border-radius: 50%; animation: operation-feedback-spin .8s linear infinite; }
+.operation-feedback-dialog h2 { margin: 0 0 12px; color: #20342c; font-size: 21px; line-height: 1.25; }
+.operation-feedback-dialog p { margin: 0; color: #52665e; font-size: 14px; line-height: 1.55; overflow-wrap: anywhere; }
+.operation-feedback-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 10px; margin-top: 24px; }
+.operation-feedback-accept, .operation-feedback-print { min-width: 138px; }
+.operation-feedback-actions :focus-visible { outline: 3px solid #efb49e; outline-offset: 3px; }
+@keyframes operation-feedback-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .operation-feedback-spinner { animation: none; border-color: #4c976d; border-right-color: transparent; } }

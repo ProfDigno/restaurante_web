@@ -1,0 +1,46 @@
+{
+  "name": "restaurante-web",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "node --watch-path=src/app.js --watch-path=src/server.js --watch-path=src/routes --watch-path=src/services --watch-path=src/middleware --watch-path=src/config src/server.js",
+    "server": "node src/server.js",
+    "build": "vite build --config vite.config.js",
+    "start": "node src/server.js",
+    "db:migrate-pedidos": "node db/migrate-pedidos.js",
+    "db:migrate-pedidos-pagados": "node db/migrate-pedidos-pagados.js",
+    "db:migrate-cliente-ocacional": "node db/migrate-cliente-ocacional.js",
+    "db:migrate-caja-completa": "node db/migrate-caja-completa.js",
+    "db:migrate-categoria-imagen": "node db/migrate-categoria-imagen.js",
+    "db:migrate-producto-menu-ingrediente": "node db/migrate-producto-menu-ingrediente.js",
+    "db:migrate-producto-ingrediente-cantidad-entera": "node db/migrate-producto-ingrediente-cantidad-entera.js",
+    "db:migrate-pedido-ingredientes": "node db/migrate-pedido-ingredientes.js",
+    "db:migrate-pedido-entregador-delivery": "node db/migrate-pedido-entregador-delivery.js",
+    "db:migrate-pago-anticipado-pedido": "node db/migrate-pago-anticipado-pedido.js",
+    "db:migrate-form-permissions": "node db/migrate-form-permissions.js",
+    "db:migrate-compra-pagos": "node db/migrate-compra-pagos.js",
+    "db:migrate-ubicacion-mesa": "node db/migrate-ubicacion-mesa.js",
+    "test:pedidos": "node db/test-pedidos-web.js && node db/test-pedidos-http.js",
+    "test:form-permissions": "node db/test-form-permissions.js",
+    "test:comanda": "node db/test-comanda.js"
+  },
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cookie-parser": "^1.4.7",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "jsonwebtoken": "^9.0.2",
+    "multer": "^2.4.0",
+    "pdfkit": "^0.20.2",
+    "pg": "^8.13.1",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "recharts": "^3.10.1"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^9.1.2",
+    "vite": "^6.0.7"
+  }
+}

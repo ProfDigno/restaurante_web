@@ -1,0 +1,70 @@
+.catalog-toolbar{align-items:center}
+.toolbar-audit{display:flex;flex-direction:column;gap:3px;min-width:230px;color:var(--muted);font-size:11px}
+.form-hint{margin:-7px 0 0;color:var(--muted);font-size:12px}
+.modal-form input[type=text]{font-size:24px}
+.money-input{text-align:right;font-variant-numeric:tabular-nums}
+.modal-form input[type=text].money-input{font-size:inherit}
+.toolbar-audit strong{color:var(--ink);font-size:12px}
+.order-cell{display:flex;align-items:center;gap:12px}
+.order-buttons{display:flex;gap:4px}
+.order-button{width:25px;height:25px;border:1px solid var(--line);background:#fff;border-radius:6px;color:var(--ink);font-weight:800;line-height:1;cursor:pointer}
+.order-button:hover:not(:disabled){border-color:#efb49e;color:#b4543b;background:#fff8f5}
+.order-button:disabled{opacity:.35;cursor:not-allowed}
+.description-cell{max-width:260px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:var(--muted)}
+.modal-form textarea,.modal-form select{border:1px solid #dce5df;border-radius:9px;padding:12px 13px;font:inherit;color:var(--ink);outline:0;background:#fff}
+.modal-form textarea{resize:vertical}
+.modal-form select:focus,.modal-form textarea:focus{border-color:var(--accent);box-shadow:0 0 0 3px #d26d4f1c}
+.form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.ruc-input-wrap{display:flex;align-items:stretch;gap:6px}.ruc-input-wrap input{flex:1;min-width:0}.ruc-lookup-button{width:44px;border:1px solid #d26d4f;border-radius:9px;background:#fff1ea;color:#a54b2b;display:grid;place-items:center;cursor:pointer}.ruc-lookup-button:hover:not(:disabled){background:#fbe1d6}.ruc-lookup-button:disabled{cursor:wait;opacity:.6}.ruc-search-icon{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}.ruc-status{display:block;font-size:11px;margin-top:4px}.ruc-status.active{color:#4c976d}.ruc-status.warning{color:#b4543b}.ruc-status.error{color:#ad4d3b}
+.form-grid label{display:grid;gap:7px;color:#53655f;font-size:12px;font-weight:700}
+.flag-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding-top:4px}
+.product-modal{width:min(100%,720px);max-height:calc(100vh - 36px);overflow:auto}
+.product-modal-tabs{display:flex;gap:8px;margin-top:22px;border-bottom:1px solid #dce5df}
+.catalog-page-tabs{display:flex;gap:8px;margin-bottom:18px;border-bottom:1px solid #dce5df;overflow-x:auto}
+.catalog-page-tabs button{border:0;border-bottom:3px solid transparent;background:transparent;padding:11px 15px;color:#53655f;font:inherit;font-size:13px;font-weight:700;white-space:nowrap;cursor:pointer}
+.catalog-page-tabs button.active{border-bottom-color:#d26d4f;color:#a54b2b}
+.catalog-page-tabs button:focus-visible{outline:2px solid #d26d4f;outline-offset:-2px}
+.category-products-toolbar strong{display:block;margin-bottom:4px;color:var(--ink)}
+.category-products-table{min-width:680px}
+@media(max-width:620px){.catalog-page-tabs button{padding:10px 11px;font-size:12px}.category-products-table th:first-child,.category-products-table td:first-child{display:table-cell}}
+.product-modal-tabs button{border:0;border-bottom:3px solid transparent;background:transparent;padding:10px 15px;color:#53655f;font:inherit;font-weight:700;cursor:pointer}
+.product-modal-tabs button.active{border-bottom-color:#d26d4f;color:#a54b2b}
+.product-modal-tabs button:disabled{opacity:.45;cursor:not-allowed}
+.product-modal-tabs button:focus-visible{outline:2px solid #d26d4f;outline-offset:2px}
+.product-modal .modal-form{margin-top:18px}
+.product-modal .modal-form input[type=search]{border:1px solid #dce5df;border-radius:9px;padding:12px 13px;font:inherit;color:var(--ink);outline:0}
+.product-modal .modal-form input[type=search]:focus{border-color:var(--accent);box-shadow:0 0 0 3px #d26d4f1c}
+.product-tab-panel{display:grid;gap:16px}
+.product-ingredients-help{margin:0;color:#53655f;font-size:13px}
+.ingredient-search-results{max-height:150px;overflow:auto;border:1px solid #dce5df;border-radius:9px}
+.ingredient-search-results button{display:block;width:100%;padding:10px 12px;border:0;border-bottom:1px solid #edf0ed;background:#fff;text-align:left;font:inherit;cursor:pointer}
+.ingredient-search-results button:hover:not(:disabled){background:#fff4ef}
+.ingredient-search-results button:disabled{opacity:.45;cursor:not-allowed}
+.ingredient-search-results button:last-child{border-bottom:0}
+.ingredient-search-results p{margin:0;padding:12px;color:#667970}
+.product-ingredient-list{display:grid;gap:10px}
+.product-ingredient-list h3{margin:4px 0;font-size:14px}
+.product-ingredient-row{display:grid;grid-template-columns:minmax(0,1fr) 105px 35px 105px auto;align-items:end;gap:8px;padding:10px 0;border-top:1px solid #edf0ed}
+.product-ingredient-row strong{display:block;overflow-wrap:anywhere}
+.product-ingredient-row small{display:block;color:#b44e43}
+.product-ingredient-row label{font-size:11px}
+.product-ingredient-row input{width:100%}
+.ingredient-unit{padding-bottom:12px;color:#53655f;font-weight:700}
+.ingredient-price{display:grid;gap:7px;padding-bottom:12px;font-size:11px;color:#53655f;white-space:nowrap}
+.ingredient-price strong{font-size:13px;color:#162820;font-variant-numeric:tabular-nums}
+.product-table{min-width:1150px}
+.numeric-cell{text-align:right;font-variant-numeric:tabular-nums}
+.numeric-input{text-align:right}
+.modal-form input[type=number]{text-align:right}
+.product-table th:nth-child(5),.product-table td:nth-child(5),.product-table th:nth-child(6),.product-table td:nth-child(6),.product-table th:nth-child(7),.product-table td:nth-child(7),.product-table th:nth-child(8),.product-table td:nth-child(8){text-align:right;font-variant-numeric:tabular-nums}
+.catalog-table .order-cell{justify-content:flex-end}
+.product-actions{display:flex;justify-content:flex-end;align-items:center;gap:10px}
+@media(max-width:620px){.form-grid,.flag-grid{grid-template-columns:1fr}.product-modal{padding:20px}.product-actions{flex-direction:column}.product-actions .edit-button{width:100%}.product-ingredient-row{grid-template-columns:minmax(0,1fr) 100px 35px}.ingredient-name{grid-column:1/-1}.ingredient-price{grid-column:1;grid-row:3}.product-ingredient-row .ingredient-remove{grid-column:2/-1;grid-row:3;justify-self:end}}
+
+.supplier-modal{max-height:calc(100dvh - 36px);overflow-y:auto;overflow-x:hidden}
+.supplier-modal .modal-form,.supplier-modal .form-grid,.supplier-modal .form-grid label{min-width:0}
+.supplier-modal .modal-form input:not([type=checkbox]){display:block;width:100%;min-width:0;border:1px solid #dce5df;border-radius:9px;padding:12px 13px;font:inherit;font-size:14px;color:var(--ink);outline:0}
+.supplier-modal .modal-form input:not([type=checkbox]):focus{border-color:var(--accent);box-shadow:0 0 0 3px #d26d4f1c}
+@media(max-width:620px){.supplier-modal{padding:20px}.supplier-modal .form-grid{grid-template-columns:minmax(0,1fr)}}
+@media(max-width:900px){.toolbar-audit{min-width:170px}.catalog-toolbar{flex-wrap:wrap}}
+@media(max-width:620px){.toolbar-audit{width:100%;order:3}.catalog-toolbar{align-items:stretch}.result-count{margin-left:auto}}
