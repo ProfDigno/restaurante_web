@@ -1,0 +1,24 @@
+/* Ventana "Solo pedido": pantalla completa sin menú ni encabezado. */
+.pos-window { box-sizing: border-box; display: flex; flex-direction: column; height: 100dvh; padding: 10px 14px; overflow: hidden; background: #f6f7f5; }
+.pos-access { align-items: center; justify-content: center; text-align: center; }
+.pos-access h1 { margin: 0 0 8px; }
+.pos-access a { color: #a54b2b; font-weight: 700; }
+
+.pos-window .orders-page { flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; gap: 8px; }
+.pos-window .orders-page > * { flex: 0 0 auto; }
+
+/* Editor: productos y detalle usan todo el alto disponible. */
+.pos-window .order-editor-layout { flex: 1 1 0; height: auto; min-height: 0; }
+.pos-window .order-workspace { height: 100%; }
+
+/* Listado: la tabla llena la altura y el encabezado queda fijo. */
+.pos-window .orders-page .catalog-toolbar { margin-bottom: 0; }
+.pos-window .orders-page .catalog-table-wrap { flex: 1 1 0; min-height: 0; overflow: auto; }
+.pos-window .orders-page .catalog-table thead th { position: sticky; top: 0; z-index: 1; background: #f4f7f5; }
+.pos-window .orders-page .catalog-footer { flex: 0 0 auto; }
+.pos-window .page-intro h2 { font-size: 20px; }
+.pos-window .page-intro .order-actions .primary { min-height: 40px; padding: 8px 20px; font-weight: 800; }
+.pos-window .catalog-table tr.finished-row > td:first-child { box-shadow: inset 4px 0 #2877c7; }
+.pos-window .catalog-table tr.paid-row > td:first-child { box-shadow: inset 4px 0 #24723f; }
+.pos-window .catalog-table tr.inactive-row > td:first-child { box-shadow: inset 4px 0 #c04b3c; }
+.pos-window .catalog-table tbody tr:not(.finished-row):not(.paid-row):not(.inactive-row) > td:first-child { box-shadow: inset 4px 0 #d26d4f; }

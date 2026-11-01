@@ -4,6 +4,7 @@ export const menuSections = [
       { id: 'mesas', label: 'Mesas', path: '/mesas' },
       { id: 'historial-mesas', label: 'Historial de mesas', path: '/historial-mesas' },
       { id: 'pedidos', label: 'Pedidos', path: '/pedidos' },
+      { id: 'solo-pedido', label: 'Solo pedido', path: '/pedido', permission: 'pedidos', external: true },
       { id: 'comanda', label: 'Comanda', path: '/comanda' },
       { id: 'kpi-pedidos', label: 'Análisis de pedidos', path: '/kpi-pedidos' },
       { id: 'buscar', label: 'Buscar pedidos', path: '/buscar' }
@@ -88,7 +89,7 @@ export function menuForPermissions(permissions = []) {
   const granted = new Set(permissions);
   return menuSections
     .map((section) => ({ ...section, items: section.items
-      .filter(item => implementedForms.has(item.id) && granted.has(permissionCode(item.id)))
+      .filter(item => (implementedForms.has(item.id) || item.permission) && granted.has(permissionCode(item.permission || item.id)))
       .map(({ roles, ...item }) => item) }))
     .filter((section) => section.items.length > 0);
 }

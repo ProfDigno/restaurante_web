@@ -14,6 +14,7 @@ import MesaHistorial from './MesaHistorial.jsx';
 import UbicacionMesa from './UbicacionMesa.jsx';
 import Pedidos from './Pedidos.jsx';
 import Comanda from './Comanda.jsx';
+import PedidoVentana from './PedidoVentana.jsx';
 import KpiPedidos from './KpiPedidos.jsx';
 import GastoTipo from './GastoTipo.jsx';
 import Gastos from './Gastos.jsx';
@@ -50,8 +51,8 @@ function Sidebar({ menu, active, setActive, collapsed, setCollapsed, user, onLog
     <div className="sidebar-top"><div className="brand"><span className="brand-mark small">R</span>{!collapsed && <span>Restaurante<span className="brand-dot">.</span></span>}</div><button className="icon-button collapse-button" onClick={() => setCollapsed(!collapsed)} aria-label="Contraer menú">{collapsed ? '›' : '‹'}</button></div>
     <nav className="nav">{menu.map((section) => <div className="nav-section" key={section.id}>
       {!collapsed && <button className="section-title" onClick={() => setOpen({ ...open, [section.id]: !open[section.id] })}><span><i>{section.icon}</i>{section.label}</span><span>{open[section.id] ? '⌃' : '⌄'}</span></button>}
-      {(collapsed || open[section.id]) && section.items.map((item) => item.id === 'comanda'
-        ? <a key={item.id} href="/comanda" target="_blank" rel="noopener noreferrer" title={collapsed ? item.label : undefined} className="nav-item"><span className="nav-icon">C</span>{!collapsed && <span>{item.label}</span>}</a>
+      {(collapsed || open[section.id]) && section.items.map((item) => item.id === 'comanda' || item.external
+        ? <a key={item.id} href={item.path} target="_blank" rel="noopener noreferrer" title={collapsed ? item.label : undefined} className="nav-item"><span className="nav-icon">{item.label.slice(0, 1)}</span>{!collapsed && <span>{item.label}</span>}</a>
         : <button key={item.id} title={collapsed ? item.label : undefined} className={`nav-item ${active === item.id ? 'active' : ''}`} onClick={() => setActive(item.id)}><span className="nav-icon">{item.label.slice(0, 1)}</span>{!collapsed && <span>{item.label}</span>}</button>)}
     </div>)}</nav>
     <div className="sidebar-user"><div className="avatar">{user.nombre.slice(0, 1)}</div>{!collapsed && <div className="user-copy"><strong>{user.nombre}</strong><span>{user.rol}</span></div>}{!collapsed && <button className="logout" onClick={onLogout}>Salir</button>}</div>
@@ -99,5 +100,6 @@ function MainApp() {
 }
 
 export default function App() {
-  return window.location.pathname === '/comanda' ? <Comanda /> : <MainApp />;
+  const path = window.location.pathname;
+  return path === '/comanda' ? <Comanda /> : path === '/pedido' ? <PedidoVentana /> : <MainApp />;
 }
