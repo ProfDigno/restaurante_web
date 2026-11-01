@@ -15,17 +15,18 @@ if not exist "package.json" (
   goto :error
 )
 
-node --version >nul 2>nul
+where node >nul 2>nul
 if errorlevel 1 (
   echo ERROR: Node.js no esta instalado o no esta disponible en PATH.
   goto :error
 )
 
+rem "where" busca en el PATH al instante; "npm --version" tardaba unos 7 segundos.
 set "PKG_RUNNER=pnpm"
-call pnpm --version >nul 2>nul
+where pnpm >nul 2>nul
 if errorlevel 1 (
   set "PKG_RUNNER=npm"
-  call npm --version >nul 2>nul
+  where npm >nul 2>nul
   if errorlevel 1 (
     echo ERROR: No se encontro pnpm ni npm en PATH.
     goto :error
