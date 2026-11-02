@@ -48,7 +48,8 @@ INSERT INTO usuario_rol_evento (nombre, descripcion, codigo_evento, creado_por) 
   ('Roles', 'Acceso al formulario Roles', 'FORM_ROLES', 'SISTEMA'),
   ('Permisos', 'Acceso al formulario Permisos', 'FORM_PERMISOS', 'SISTEMA'),
   ('Facturas', 'Acceso al formulario Facturas', 'FORM_FACTURAS', 'SISTEMA'),
-  ('Datos de restaurante', 'Acceso a los datos de restaurante y conexión de facturación', 'FORM_DATOS_RESTAURANTE', 'SISTEMA')
+  ('Datos de restaurante', 'Acceso a los datos de restaurante y conexión de facturación', 'FORM_DATOS_RESTAURANTE', 'SISTEMA'),
+  ('Configuración de comanda', 'Acceso a la configuración de la comanda', 'FORM_CONFIGURACION_COMANDA', 'SISTEMA')
 ON CONFLICT (codigo_evento) DO NOTHING;
 INSERT INTO usuario_rol_item (fk_idusuario_rol, fk_idusuario_rol_evento, creado_por)
 SELECT r.idusuario_rol, e.idusuario_rol_evento, 'SISTEMA'

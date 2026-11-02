@@ -6,6 +6,7 @@ import { createServer as createViteServer } from 'vite';
 import react from '@vitejs/plugin-react';
 import { notFound, errorHandler } from './middleware/error.js';
 import { finishExpiredComandas } from './services/comandas.js';
+import { leerConfigComanda } from './services/comanda-config.js';
 import { assertSessionSecret } from './middleware/auth.js';
 
 const isDevelopment = process.env.NODE_ENV !== 'production';
@@ -40,14 +41,14 @@ app.use(errorHandler);
 const port = Number(process.env.PORT || 3000);
 app.listen(port, () => {
   console.log(`Restaurante Web disponible en http://localhost:${port}`);
-  let checking = false;
+  // El intervalo de revisión se lee de la configuración de la comanda en cada ciclo.
   const checkExpired = async () => {
-    if (checking) return;
-    checking = true;
-    try { await finishExpiredComandas(); }
-    catch (error) { console.error('No se pudieron revisar las comandas vencidas:', error); }
-    finally { checking = false; }
+    let seconds = 15;
+    try {
+      seconds = (await leerConfigComanda()).chequeo_limite_seg;
+      await finishExpiredComandas();
+    } catch (error) { console.error('No se pudieron revisar las comandas vencidas:', error); }
+    setTimeout(checkExpired, seconds * 1000).unref();
   };
   void checkExpired();
-  setInterval(checkExpired, 15000).unref();
 });

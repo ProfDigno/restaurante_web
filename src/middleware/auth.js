@@ -66,7 +66,8 @@ const routeForms = {
   '/api/pedidos': 'pedidos', '/api/formas-pago': 'formas-pago', '/api/cajas': 'caja',
   '/api/gasto-tipos': 'gasto-tipos', '/api/gastos': 'gastos',
   '/api/proveedores': 'proveedores', '/api/compras': 'compras',
-  '/api/facturas': 'facturas', '/api/datos-restaurante': 'datos-restaurante'
+  '/api/facturas': 'facturas', '/api/datos-restaurante': 'datos-restaurante',
+  '/api/comanda-config': 'configuracion-comanda'
 };
 const routeReadAlternatives = {
   '/api/mesas': ['pedidos'],

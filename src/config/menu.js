@@ -79,7 +79,8 @@ export const menuSections = [
   },
   {
     id: 'configuracion-sistema', label: 'Configuración del sistema', icon: '⚙', items: [
-      { id: 'datos-restaurante', label: 'Datos de restaurante', path: '/datos-restaurante' }
+      { id: 'datos-restaurante', label: 'Datos de restaurante', path: '/datos-restaurante' },
+      { id: 'configuracion-comanda', label: 'Comanda', path: '/configuracion-comanda' }
     ]
   }
 ];
@@ -89,7 +90,7 @@ export const implementedForms = new Set([
   'unidades-menu', 'ubicaciones-mesa', 'mesas-config', 'ingredientes',
   'unidades-medida', 'conversiones-unidad', 'caja', 'formas-pago', 'gastos', 'kpi-gastos', 'gasto-tipos',
   'clientes', 'zonas', 'usuarios', 'roles', 'permisos', 'compras', 'proveedores',
-  'facturas', 'datos-restaurante'
+  'facturas', 'datos-restaurante', 'configuracion-comanda'
 ]);
 
 export const permissionCode = (formId) => `FORM_${formId.toUpperCase().replaceAll('-', '_')}`;

@@ -1,0 +1,11 @@
+.comanda-config-preview { display: flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; min-height: 38px; }
+.comanda-config-preview span { flex: 1; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; color: #17201f; padding: 8px 4px; border-right: 1px solid #17201f20; }
+.comanda-config-preview span:last-child { border-right: 0; }
+.comanda-config-tramos { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.comanda-config-tramos li { display: flex; align-items: flex-end; gap: 12px; flex-wrap: wrap; }
+.comanda-config-tramos label { display: grid; gap: 6px; font-size: 12px; font-weight: 700; color: var(--muted); }
+.comanda-config-tramos input[type=number] { width: 130px; border: 1px solid var(--line); border-radius: 9px; padding: 10px 12px; font: inherit; color: var(--ink); }
+.comanda-config-tramos input[type=color] { width: 64px; height: 40px; padding: 2px; border: 1px solid var(--line); border-radius: 9px; background: #fff; cursor: pointer; }
+.comanda-config-switch { display: flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 700; cursor: pointer; }
+.comanda-config-switch input { width: 18px; height: 18px; accent-color: var(--accent); }
+.invoice-grid small.muted { font-weight: 400; }
