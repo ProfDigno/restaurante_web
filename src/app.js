@@ -27,6 +27,8 @@ import gastoRoutes from './routes/gasto.routes.js';
 import kpiGastoRoutes from './routes/kpi-gasto.routes.js';
 import proveedorRoutes from './routes/proveedor.routes.js';
 import compraRoutes from './routes/compra.routes.js';
+import facturaRoutes from './routes/factura.routes.js';
+import datosRestauranteRoutes from './routes/datos-restaurante.routes.js';
 import securityRoutes from './routes/security.routes.js';
 import { requireAuth, requirePermission } from './middleware/auth.js';
 import { notFound, errorHandler } from './middleware/error.js';
@@ -71,6 +73,8 @@ app.use('/api/gastos', requireAuth, requirePermission('gastos'), gastoRoutes);
 app.use('/api/kpi-gastos', requireAuth, requirePermission('kpi-gastos'), kpiGastoRoutes);
 app.use('/api/proveedores', requireAuth, requirePermission('proveedores'), proveedorRoutes);
 app.use('/api/compras', requireAuth, requirePermission('compras'), compraRoutes);
+app.use('/api/facturas', requireAuth, requirePermission('facturas'), facturaRoutes);
+app.use('/api/datos-restaurante', requireAuth, requirePermission('datos-restaurante'), datosRestauranteRoutes);
 app.use('/api', securityRoutes);
 
 // En desarrollo, Vite se monta como middleware desde server.js para compartir

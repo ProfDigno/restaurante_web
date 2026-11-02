@@ -12,6 +12,7 @@ export default function MesaHistorial() {
   const [page, setPage] = useState(1);
   const [data, setData] = useState({ items: [], mesas: [], total: 0, totalPages: 1 });
   const [detail, setDetail] = useState(null);
+  const [tab, setTab] = useState('resumen');
   const [loading, setLoading] = useState(false);
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState('');
@@ -39,6 +40,7 @@ export default function MesaHistorial() {
       const response = await fetch(`/api/mesas/historial/${cuentaId}`);
       const body = await response.json();
       if (!response.ok) throw new Error(body.error || 'No se pudo cargar el detalle');
+      setTab('resumen');
       setDetail(body);
     } catch (cause) { setError(cause.message); }
     finally { setDetailLoading(false); }
@@ -53,9 +55,14 @@ export default function MesaHistorial() {
       </tbody></table></div>
       <div className="catalog-footer"><span>Página {page} de {data.totalPages}</span><div className="pagination"><button type="button" className="page-button" disabled={loading || page <= 1} onClick={() => setPage(value => value - 1)}>Anterior</button><button type="button" className="page-button" disabled={loading || page >= data.totalPages} onClick={() => setPage(value => value + 1)}>Siguiente</button></div></div>
     {detail && <div className="modal-backdrop" onMouseDown={event => { if (event.target === event.currentTarget) setDetail(null); }}><div className="modal mesa-history-modal" role="dialog" aria-modal="true" aria-label={`Historial de mesa ${detail.mesa_numero}`}><div className="modal-head"><div><h2>Mesa {detail.mesa_numero} · Cuenta #{detail.idcuenta}</h2><p className="muted">{detail.cliente || 'Sin cliente'} · {dateTime(detail.fecha_apertura)} a {dateTime(detail.fecha_cierre)}</p></div><button type="button" className="modal-close" onClick={() => setDetail(null)} aria-label="Cerrar">×</button></div><p className="mesa-history-total">Total: <strong>{formatMoney(detail.total)}</strong></p><a className="secondary mesa-history-print" href={`/api/mesas/historial/${detail.idcuenta}/ticket.pdf`} target="_blank" rel="noopener noreferrer">Imprimir ticket</a>
+      <div className="mesa-history-tabs" role="tablist"><button type="button" role="tab" aria-selected={tab === 'resumen'} className={tab === 'resumen' ? 'active' : ''} onClick={() => setTab('resumen')}>Resumen</button><button type="button" role="tab" aria-selected={tab === 'productos'} className={tab === 'productos' ? 'active' : ''} onClick={() => setTab('productos')}>Productos pedidos</button></div>
+      {tab === 'resumen' ? <>
       <h3>Pedidos</h3>{detail.pedidos.length ? <ul>{detail.pedidos.map(item => <li key={item.idpedido}>#{item.idpedido} · {item.cliente || 'Sin cliente'} · {item.estado} · {formatMoney(item.monto_total)}</li>)}</ul> : <p className="muted">Sin pedidos.</p>}
       <h3>Pagos</h3>{detail.pagos.length ? <ul>{detail.pagos.map(item => <li key={item.idpago}>#{item.idpago} · {item.forma_pago} · {item.estado} · {formatMoney(item.importe)}{Number(item.devuelto) > 0 ? ` · devuelto ${formatMoney(item.devuelto)}` : ''}</li>)}</ul> : <p className="muted">Sin pagos registrados.</p>}
       <h3>Devoluciones</h3>{detail.devoluciones.length ? <ul>{detail.devoluciones.map(item => <li key={item.iddevolucion_pago}>Pago #{item.fk_idpago} · Pedido #{item.fk_idpedido} · {formatMoney(item.importe)} · {item.motivo}</li>)}</ul> : <p className="muted">Sin devoluciones.</p>}
+      </> : detail.productos.length ? detail.pedidos.filter(pedido => detail.productos.some(item => item.fk_idpedido === pedido.idpedido)).map(pedido => <div key={pedido.idpedido}><h3>Pedido #{pedido.idpedido} · {pedido.estado}</h3><div className="catalog-table-wrap"><table className="catalog-table mesa-history-products"><thead><tr><th>Producto</th><th className="numeric-cell">Cant.</th><th className="numeric-cell">Precio venta</th><th className="numeric-cell">Subtotal</th></tr></thead><tbody>
+        {detail.productos.filter(item => item.fk_idpedido === pedido.idpedido).map(item => <tr key={item.iddetalle_pedido} className={item.estado === 'cancelado' ? 'cancelled' : ''}><td><strong>{item.producto}</strong><small>Unidad: {item.unidad || '—'}{item.estado === 'cancelado' ? ' · Cancelado' : ''}</small>{item.observaciones && <small>{item.observaciones}</small>}</td><td className="numeric-cell">{Number(item.cantidad)}</td><td className="numeric-cell">{formatMoney(item.precio_venta)}</td><td className="numeric-cell">{formatMoney(item.subtotal)}</td></tr>)}
+      </tbody></table></div></div>) : <p className="muted">Sin productos.</p>}
     </div></div>}
   </section>;
 }

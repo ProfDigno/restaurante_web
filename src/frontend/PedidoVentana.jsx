@@ -32,5 +32,5 @@ export default function PedidoVentana() {
   const cuentaId = Number(new URLSearchParams(window.location.search).get('cuenta'));
   const mesaId = Number(new URLSearchParams(window.location.search).get('mesa'));
   const context = Number.isInteger(cuentaId) && cuentaId > 0 ? { cuentaId } : Number.isInteger(mesaId) && mesaId > 0 ? { mesaId } : null;
-  return <main className={`pos-window${mobile ? ' pos-mobile' : ''}`}><Pedidos user={session.user} context={context} pos /></main>;
+  return <main className={`pos-window${mobile ? ' pos-mobile' : ''}`}><Pedidos user={session.user} context={context} onInvoice={pedidoId => window.open(`/?factura=${pedidoId}`, '_blank', 'noopener')} pos /></main>;
 }

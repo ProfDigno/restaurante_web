@@ -37,11 +37,12 @@ router.get('/productos',route(async req=>({items:(await pool.query(`SELECT pm.id
   ORDER BY cm.nombre,um.nombre,pm.nombre,pm.idproducto_menu LIMIT 40`,[`%${String(req.query.search||'').trim()}%`])).rows})));
 router.get('/',route(async req=>{
   const page=integer(req.query.page||1,'Página',1),size=[25,50,100].includes(Number(req.query.pageSize))?Number(req.query.pageSize):25;
-  const search=`%${String(req.query.search||'').trim()}%`,estado=String(req.query.estado||'');
+  const search=`%${String(req.query.search||'').trim()}%`,estado=String(req.query.estado||''),{inicio,fin}=req.query;
   if(estado&&!['borrador','recibida','cancelada'].includes(estado))fail('Estado inválido');
-  const where="WHERE ($1::text='' OR c.estado::text=$1) AND (p.nombre ILIKE $2 OR COALESCE(c.numero_nota,'') ILIKE $2)";
-  const total=(await pool.query(`SELECT count(*)::int AS total FROM compra c JOIN proveedor p ON p.idproveedor=c.fk_idproveedor ${where}`,[estado,search])).rows[0].total;
-  const items=(await pool.query(`${select} ${where} ORDER BY c.idcompra DESC LIMIT $3 OFFSET $4`,[estado,search,size,(page-1)*size])).rows;
+  if((inicio&&!validDate(inicio))||(fin&&!validDate(fin))||(inicio&&fin&&inicio>fin))fail('Rango de fechas inválido');
+  const where="WHERE ($1::text='' OR c.estado::text=$1) AND (p.nombre ILIKE $2 OR COALESCE(c.numero_nota,'') ILIKE $2) AND ($3::date IS NULL OR c.fecha_compra >= $3::date) AND ($4::date IS NULL OR c.fecha_compra < $4::date + INTERVAL '1 day')";
+  const total=(await pool.query(`SELECT count(*)::int AS total FROM compra c JOIN proveedor p ON p.idproveedor=c.fk_idproveedor ${where}`,[estado,search,inicio||null,fin||null])).rows[0].total;
+  const items=(await pool.query(`${select} ${where} ORDER BY c.idcompra DESC LIMIT $5 OFFSET $6`,[estado,search,inicio||null,fin||null,size,(page-1)*size])).rows;
   return {items,total,page,pageSize:size,totalPages:Math.max(1,Math.ceil(total/size))};
 }));
 router.get('/:id',route(req=>full(pool,req.params.id)));

@@ -7,6 +7,11 @@ export function integer(value, name, min = 0) {
 }
 export const id = (value, min = 1) => { const n = integer(value, 'Identificador', min); if (n > 2147483647) fail('Identificador fuera de rango'); return n; };
 export const textRequired = (value, label) => { const s = String(value || '').trim(); if (!s) fail(`${label} es obligatorio`); return s; };
+// Un pedido facturado queda bloqueado: primero hay que cancelar la factura.
+export async function assertSinFactura(c, pedidoId) {
+  const factura = (await c.query("SELECT idfactura FROM factura WHERE fk_idpedido=$1 AND estado<>'cancelado'", [pedidoId])).rows[0];
+  if (factura) fail(`El pedido tiene la factura #${factura.idfactura}. Cancelala antes de modificarlo o anularlo`, 409);
+}
 
 // Same key + same request replays the committed result, including after a lost response.
 export async function operation(req, action) {
@@ -98,6 +103,7 @@ export async function saveOrder(c, body, user, orderId = null) {
   if (orderId) {
     p = await order(c, orderId); a = await account(c, p.fk_idcuenta, true);
     if (body.fk_identregador_delivery === undefined) courierId = p.fk_identregador_delivery;
+    await assertSinFactura(c, p.idpedido);
     if (p.estado !== 'en_preparacion' || a.estado !== 'abierta') fail('El pedido ya no admite edición', 409);
     if (p.version_web !== id(body.version_web)) fail('El pedido cambió. Volvé a cargarlo antes de guardar', 409);
     if (body.tipo_entrega !== p.tipo_entrega || Number(body.fk_idmesa || 0) !== Number(p.fk_idmesa || 0) || Number(body.fk_idcliente) !== p.fk_idcliente) fail('Tipo, mesa y cliente quedan fijos después de guardar');
@@ -230,6 +236,7 @@ export async function cancellationPreview(c,orderId) {
   return { pedido:p,cuenta:a,nuevo_total:newTotal,devolver:Math.max(0,Number(a.cobrado)-newTotal) };
 }
 export async function cancelOrder(c,orderId,body,user) {
+  await assertSinFactura(c, id(orderId));
   const preview = await cancellationPreview(c,orderId); const reason=textRequired(body.motivo,'El motivo');
   const refunds=body.devoluciones || []; if (!Array.isArray(refunds) || refunds.length>100) fail('Devoluciones inválidas');
   let amount=0; const used=new Set();

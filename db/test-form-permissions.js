@@ -34,8 +34,8 @@ try {
     return data;
   }
   const admin = await call('/api/auth/me');
-  assert.equal(admin.user.permisos.filter(code => code.startsWith('FORM_')).length, 27);
-  assert.deepEqual(admin.menu.map(section => section.label), ['Operación', 'Usuarios', 'Cliente', 'Productos', 'Mesas', 'Caja y finanzas', 'Gasto', 'Compra']);
+  assert.equal(admin.user.permisos.filter(code => code.startsWith('FORM_')).length, 29);
+  assert.deepEqual(admin.menu.map(section => section.label), ['Operación', 'Usuarios', 'Cliente', 'Productos', 'Mesas', 'Caja y finanzas', 'Gasto', 'Compra', 'Factura', 'Configuración del sistema']);
   assert.deepEqual(admin.menu.map(section => section.items.map(item => item.id)), [
     ['mesas', 'solo-mesas', 'historial-mesas', 'pedidos', 'solo-pedido', 'comanda', 'kpi-pedidos'],
     ['usuarios', 'roles', 'permisos'],
@@ -44,7 +44,9 @@ try {
     ['ubicaciones-mesa', 'mesas-config'],
     ['caja', 'formas-pago'],
     ['gastos', 'kpi-gastos', 'gasto-tipos'],
-    ['compras', 'proveedores']
+    ['compras', 'proveedores'],
+    ['facturas'],
+    ['datos-restaurante']
   ]);
   const waiter = await call('/api/auth/me', { as: 'mozo' });
   assert.deepEqual(waiter.user.permisos.filter(code => code.startsWith('FORM_')).sort(), ['FORM_COMANDA', 'FORM_MESAS', 'FORM_PEDIDOS']);

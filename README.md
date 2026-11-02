@@ -136,6 +136,14 @@ En bases ya instaladas, ejecutá `npm run db:migrate-producto-menu-ingrediente` 
 Luego ejecutá `npm run db:migrate-producto-ingrediente-cantidad-entera` para usar cantidades enteras. La migración se detiene si encuentra alguna cantidad fraccionaria.
 Ejecutá `npm run db:migrate-pedido-ingredientes` para calcular las personalizaciones del pedido según la cantidad del producto padre.
 Ejecutá `npm run db:migrate-pedido-entregador-delivery` en bases instaladas para permitir cambios en pedidos con un entregador posteriormente desactivado.
+Ejecutá `npm run db:migrate-factura-electronica` en bases instaladas para crear `datos_restaurante`, `factura` y `factura_detalle` y los permisos de los formularios Facturas y Datos de restaurante.
+
+## Factura electrónica (SISFE)
+
+Las facturas se emiten desde el botón **Facturar** de un pedido y usan la API REST de SISFE (https://sisfe.com.py/documentacion.html).
+La URL del servidor, el tenant, la API Key y la numeración se configuran en **Configuración del sistema → Datos de restaurante**
+(la API Key solo se guarda en el servidor). La factura se crea primero como borrador en SISFE y luego se confirma para enviarla a SIFEN.
+Siempre es contado, en efectivo y con IVA 10%. `npm run test:facturas` prueba el flujo completo contra un SISFE simulado.
 
 ## Aplicación Node.js
 

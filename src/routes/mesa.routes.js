@@ -115,7 +115,7 @@ router.get('/historial/:cuentaId', async (req, res, next) => {
       LEFT JOIN cliente cl ON cl.idcliente=c.fk_idcliente
       WHERE c.idcuenta=$1 AND c.tipo='SALON' AND c.estado='cerrada' AND c.fecha_cierre IS NOT NULL`, [cuentaId]);
     if (!rows.length) return res.status(404).json({ error: 'Uso de mesa no encontrado' });
-    const [pedidos, pagos, devoluciones] = await Promise.all([
+    const [pedidos, pagos, devoluciones, productos] = await Promise.all([
       pool.query(`SELECT p.idpedido, p.fecha_creado, p.estado, p.monto_total, cl.nombre_completo AS cliente
         FROM pedido p LEFT JOIN cliente cl ON cl.idcliente=p.fk_idcliente
         WHERE p.fk_idcuenta=$1 ORDER BY p.idpedido`, [cuentaId]),
@@ -128,9 +128,16 @@ router.get('/historial/:cuentaId', async (req, res, next) => {
       pool.query(`SELECT d.iddevolucion_pago, d.fk_idpedido, d.fk_idpago, d.fecha_creado,
         d.importe, d.motivo FROM devolucion_pago d
         JOIN pago p ON p.idpago=d.fk_idpago WHERE p.fk_idcuenta=$1
-        ORDER BY d.iddevolucion_pago`, [cuentaId])
+        ORDER BY d.iddevolucion_pago`, [cuentaId]),
+      pool.query(`SELECT dp.iddetalle_pedido, dp.fk_idpedido, cm.nombre || ' - ' || pm.nombre AS producto, um.nombre AS unidad, dp.cantidad,
+        dp.precio_venta, dp.cantidad * dp.precio_venta AS subtotal, dp.estado, dp.observaciones
+        FROM detalle_pedido dp JOIN pedido p ON p.idpedido=dp.fk_idpedido
+        JOIN producto_menu pm ON pm.idproducto_menu=dp.fk_idproducto_menu
+        JOIN categoria_menu cm ON cm.idcategoria_menu=pm.fk_idcategoria_menu
+        JOIN unidad_menu um ON um.idunidad_menu=pm.fk_idunidad_menu
+        WHERE p.fk_idcuenta=$1 ORDER BY dp.fk_idpedido, dp.iddetalle_pedido`, [cuentaId])
     ]);
-    res.json({ ...rows[0], pedidos: pedidos.rows, pagos: pagos.rows, devoluciones: devoluciones.rows });
+    res.json({ ...rows[0], pedidos: pedidos.rows, pagos: pagos.rows, devoluciones: devoluciones.rows, productos: productos.rows });
   } catch (error) { next(error); }
 });
 

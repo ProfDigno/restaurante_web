@@ -169,6 +169,7 @@ function OperationFeedbackDialog({ feedback, onDismiss, onHold, onReplace }) {
       {!loading && !charging && <div className="operation-feedback-actions">
         <button ref={acceptRef} type="button" className="primary operation-feedback-accept" onClick={onDismiss}>ACEPTAR</button>
         {advance && <button type="button" className="secondary operation-feedback-charge-button" onClick={openCharge}>COBRO ANTICIPADO</button>}
+        {feedback.invoice && <button type="button" className="secondary operation-feedback-print" onClick={() => { onDismiss(); feedback.invoice(); }}>FACTURAR</button>}
         {feedback.printUrl && <a className="secondary operation-feedback-print" href={feedback.printUrl} target="_blank" rel="noopener noreferrer" onClick={onDismiss}>IMPRIMIR</a>}
       </div>}
     </div>
