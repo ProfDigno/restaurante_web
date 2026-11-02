@@ -111,8 +111,8 @@ CREATE TABLE cliente (
   idcliente integer NOT NULL DEFAULT nextval('cliente_id_seq'::regclass) PRIMARY KEY,
   fecha_creado timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   creado_por text NOT NULL DEFAULT 'SISTEMA',
-  nombre_completo varchar(120) NOT NULL, razon_social varchar(150), ruc varchar(30) NOT NULL UNIQUE CHECK (btrim(ruc) <> ''),
-  direccion varchar(250), telefono varchar(40) NOT NULL CHECK (btrim(telefono) <> ''), email varchar(255), notas text,
+  nombre_completo varchar(120) NOT NULL, razon_social varchar(150), ruc varchar(30) UNIQUE CHECK (btrim(ruc) <> ''),
+  direccion varchar(250), telefono varchar(40) CHECK (btrim(telefono) <> ''), email varchar(255), notas text,
   activo boolean NOT NULL DEFAULT true,
   es_ocacional boolean NOT NULL DEFAULT false,
   fk_idzona_cliente integer REFERENCES zona_cliente(idzona_cliente)
@@ -295,8 +295,10 @@ CREATE TABLE forma_pago (
   es_ingreso boolean NOT NULL DEFAULT true,
   es_egreso boolean NOT NULL DEFAULT false,
   orden smallint NOT NULL DEFAULT 0 CHECK (orden >= 0),
-  activo boolean NOT NULL DEFAULT true
+  activo boolean NOT NULL DEFAULT true,
+  es_default boolean NOT NULL DEFAULT false
 );
+CREATE UNIQUE INDEX forma_pago_unica_default ON forma_pago (es_default) WHERE es_default;
 
 CREATE TABLE entregador_delivery (
   identregador_delivery integer NOT NULL DEFAULT nextval('entregador_delivery_id_seq'::regclass) PRIMARY KEY,

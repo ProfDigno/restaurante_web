@@ -37,7 +37,7 @@ try {
   assert.equal(admin.user.permisos.filter(code => code.startsWith('FORM_')).length, 27);
   assert.deepEqual(admin.menu.map(section => section.label), ['Operación', 'Usuarios', 'Cliente', 'Productos', 'Mesas', 'Caja y finanzas', 'Gasto', 'Compra']);
   assert.deepEqual(admin.menu.map(section => section.items.map(item => item.id)), [
-    ['mesas', 'historial-mesas', 'pedidos', 'solo-pedido', 'comanda', 'kpi-pedidos'],
+    ['mesas', 'solo-mesas', 'historial-mesas', 'pedidos', 'solo-pedido', 'comanda', 'kpi-pedidos'],
     ['usuarios', 'roles', 'permisos'],
     ['clientes', 'zonas', 'delivery'],
     ['categorias', 'menu', 'grupos', 'unidades-menu', 'ingredientes', 'unidades-medida', 'conversiones-unidad'],
@@ -49,7 +49,7 @@ try {
   const waiter = await call('/api/auth/me', { as: 'mozo' });
   assert.deepEqual(waiter.user.permisos.filter(code => code.startsWith('FORM_')).sort(), ['FORM_COMANDA', 'FORM_MESAS', 'FORM_PEDIDOS']);
   assert.deepEqual(waiter.menu.map(section => section.label), ['Operación']);
-  assert.deepEqual(waiter.menu.flatMap(section => section.items.map(item => item.id)).sort(), ['comanda', 'mesas', 'pedidos', 'solo-pedido']);
+  assert.deepEqual(waiter.menu.flatMap(section => section.items.map(item => item.id)).sort(), ['comanda', 'mesas', 'pedidos', 'solo-mesas', 'solo-pedido']);
   await call('/api/pedidos', { as: 'mozo' });
   await call('/api/mesas/historial', { as: 'mozo', status: 403 });
   const history = await call('/api/mesas/historial');

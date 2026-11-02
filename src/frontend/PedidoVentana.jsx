@@ -2,8 +2,19 @@ import { useEffect, useState } from 'react';
 import Pedidos from './Pedidos.jsx';
 import './pedido-ventana.css';
 
+const mobileQuery = '(max-width: 900px)';
+const isMobileDevice = () => /Android|iPhone|iPod|Mobile/i.test(navigator.userAgent) || window.matchMedia(mobileQuery).matches;
+
 export default function PedidoVentana() {
   const [session, setSession] = useState({ access: 'loading', user: null });
+  const [mobile, setMobile] = useState(isMobileDevice);
+
+  useEffect(() => {
+    const media = window.matchMedia(mobileQuery);
+    const update = () => setMobile(isMobileDevice());
+    media.addEventListener('change', update);
+    return () => media.removeEventListener('change', update);
+  }, []);
 
   useEffect(() => { document.title = 'PEDIDO'; }, []);
 
@@ -18,5 +29,8 @@ export default function PedidoVentana() {
   }, []);
 
   if (session.access !== 'allowed') return <main className="pos-window pos-access"><div><h1>PEDIDO</h1><p>{session.access === 'loading' ? 'Cargando…' : 'Iniciá sesión con un usuario autorizado para tomar pedidos.'}</p>{session.access === 'denied' && <a href="/">Ir a Restaurante Web</a>}</div></main>;
-  return <main className="pos-window"><Pedidos user={session.user} context={null} pos /></main>;
+  const cuentaId = Number(new URLSearchParams(window.location.search).get('cuenta'));
+  const mesaId = Number(new URLSearchParams(window.location.search).get('mesa'));
+  const context = Number.isInteger(cuentaId) && cuentaId > 0 ? { cuentaId } : Number.isInteger(mesaId) && mesaId > 0 ? { mesaId } : null;
+  return <main className={`pos-window${mobile ? ' pos-mobile' : ''}`}><Pedidos user={session.user} context={context} pos /></main>;
 }

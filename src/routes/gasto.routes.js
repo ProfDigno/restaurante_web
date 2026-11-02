@@ -10,7 +10,7 @@ const select=`SELECT g.*,t.nombre AS tipo_nombre,f.nombre AS forma_pago_nombre F
 router.get('/opciones',route(async()=>{
   const [tipos,formas]=await Promise.all([
     pool.query('SELECT idgasto_tipo,nombre,activo FROM gasto_tipo ORDER BY orden,nombre'),
-    pool.query('SELECT idforma_pago,nombre FROM forma_pago WHERE activo AND es_egreso ORDER BY orden,nombre')
+    pool.query('SELECT idforma_pago,nombre,es_default FROM forma_pago WHERE activo AND es_egreso ORDER BY orden,nombre')
   ]);
   return {tipos:tipos.rows,formas:formas.rows};
 }));

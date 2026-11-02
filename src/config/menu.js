@@ -2,6 +2,7 @@ export const menuSections = [
   {
     id: 'operacion', label: 'Operación', icon: '▣', items: [
       { id: 'mesas', label: 'Mesas', path: '/mesas' },
+      { id: 'solo-mesas', label: 'Solo mesas', path: '/mesa', permission: 'mesas', external: true },
       { id: 'historial-mesas', label: 'Historial de mesas', path: '/historial-mesas' },
       { id: 'pedidos', label: 'Pedidos', path: '/pedidos' },
       { id: 'solo-pedido', label: 'Solo pedido', path: '/pedido', permission: 'pedidos', external: true },

@@ -11,6 +11,8 @@
     "db:migrate-pedidos": "node db/migrate-pedidos.js",
     "db:migrate-pedidos-pagados": "node db/migrate-pedidos-pagados.js",
     "db:migrate-cliente-ocacional": "node db/migrate-cliente-ocacional.js",
+    "db:migrate-cliente-rapido": "node db/migrate-cliente-rapido.js",
+    "db:migrate-forma-pago-default": "node db/migrate-forma-pago-default.js",
     "db:migrate-caja-completa": "node db/migrate-caja-completa.js",
     "db:migrate-categoria-imagen": "node db/migrate-categoria-imagen.js",
     "db:migrate-producto-menu-ingrediente": "node db/migrate-producto-menu-ingrediente.js",

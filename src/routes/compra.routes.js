@@ -22,7 +22,7 @@ async function full(c,compraId){
   return compra;
 }
 router.get('/opciones',route(async()=>{
-  const formas=(await pool.query('SELECT idforma_pago,nombre FROM forma_pago WHERE activo AND es_egreso ORDER BY orden,nombre')).rows;
+  const formas=(await pool.query('SELECT idforma_pago,nombre,es_default FROM forma_pago WHERE activo AND es_egreso ORDER BY orden,nombre')).rows;
   return {formas};
 }));
 router.get('/proveedores',route(async req=>({items:(await pool.query(`SELECT idproveedor,nombre,ruc,telefono FROM proveedor WHERE activo AND

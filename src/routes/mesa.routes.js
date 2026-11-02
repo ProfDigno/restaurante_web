@@ -25,11 +25,14 @@ router.get('/', async (req, res, next) => {
   try {
     const { rows } = await pool.query(`
       SELECT m.idmesa, m.numero, m.capacidad, m.fk_idubicacion_mesa,
-        u.nombre AS ubicacion, m.estado, m.activa,
-        c.idcuenta, COALESCE(c.total, 0) AS total, c.fecha_apertura
+        u.nombre AS ubicacion, CASE WHEN c.idcuenta IS NULL THEN 'libre' ELSE 'ocupado' END AS estado, m.activa,
+        c.idcuenta, COALESCE(c.total, 0) AS total, c.fecha_apertura,
+        cl.nombre_completo AS cliente_nombre, cl.ruc AS cliente_ruc, cl.telefono AS cliente_telefono
       FROM mesa m
       JOIN ubicacion_mesa u ON u.idubicacion_mesa = m.fk_idubicacion_mesa
       LEFT JOIN cuenta c ON c.fk_idmesa = m.idmesa AND c.estado = 'abierta'
+        AND EXISTS (SELECT 1 FROM pedido p WHERE p.fk_idcuenta = c.idcuenta AND p.estado <> 'cancelado')
+      LEFT JOIN cliente cl ON cl.idcliente = c.fk_idcliente
       WHERE m.activa
       ORDER BY m.numero`);
     res.json({ mesas: rows });

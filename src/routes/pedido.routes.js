@@ -33,6 +33,46 @@ router.get('/clientes',route(async req=>{
   const params=[search,req.query.id?id(req.query.id):null,req.query.ocacional==='true'];
   return {items:(await pool.query(`SELECT c.*,z.nombre AS zona_nombre,z.precio_delivery,z.activo AS zona_activa FROM cliente c LEFT JOIN zona_cliente z ON z.idzona_cliente=c.fk_idzona_cliente WHERE c.activo AND ($2::integer IS NULL OR c.idcliente=$2) AND (NOT $3::boolean OR c.es_ocacional) AND (c.nombre_completo ILIKE $1 OR c.ruc ILIKE $1 OR c.telefono ILIKE $1) ORDER BY c.nombre_completo,c.idcliente LIMIT 50`,params)).rows};
 }));
+const quickClientSelect='SELECT c.*,z.nombre AS zona_nombre,z.precio_delivery,z.activo AS zona_activa FROM cliente c LEFT JOIN zona_cliente z ON z.idzona_cliente=c.fk_idzona_cliente WHERE c.idcliente=$1';
+router.post('/clientes/rapido',route(async req=>{
+  const text=(value,max,label)=>{const v=String(value??'').trim();if(v.length>max)fail(`${label} no puede superar ${max} caracteres`);return v||null;};
+  const name=text(req.body?.nombre,120,'El nombre');
+  const ruc=text(req.body?.ruc,11,'El RUC');
+  const phone=text(req.body?.telefono,11,'El teléfono');
+  const address=text(req.body?.direccion,250,'La dirección');
+  const zoneId=req.body?.fk_idzona_cliente===''||req.body?.fk_idzona_cliente==null?null:Number(req.body.fk_idzona_cliente);
+  const delivery=req.body?.tipo_entrega==='DELIVERY';
+  if(!name)fail('El nombre es obligatorio');
+  if(ruc&&!/^[0-9-]+$/.test(ruc))fail('El RUC solo admite números y guion');
+  if(zoneId!==null&&!Number.isInteger(zoneId))fail('La zona seleccionada no es válida');
+  if(delivery){
+    if(!phone)fail('El teléfono es obligatorio para delivery');
+    if(!address)fail('La dirección es obligatoria para delivery');
+    if(zoneId===null)fail('La zona es obligatoria para delivery');
+  }
+  if(zoneId!==null&&!(await pool.query('SELECT 1 FROM zona_cliente WHERE idzona_cliente=$1 AND activo',[zoneId])).rows.length)fail('La zona seleccionada no existe o está inactiva');
+  const found=(await pool.query('SELECT idcliente,activo,direccion,fk_idzona_cliente,ruc,telefono FROM cliente WHERE ($1::text IS NOT NULL AND lower(btrim(ruc))=lower($1)) OR ($2::text IS NOT NULL AND btrim(telefono)=$2)',[ruc,phone])).rows;
+  if(new Set(found.map(c=>c.idcliente)).size>1)fail('El RUC y el teléfono pertenecen a clientes distintos',409);
+  try{
+    if(found.length){
+      const current=found[0];
+      if(!current.activo)fail('El cliente existe pero está inactivo',409);
+      await pool.query('UPDATE cliente SET direccion=COALESCE(direccion,$2),fk_idzona_cliente=COALESCE(fk_idzona_cliente,$3),ruc=COALESCE(ruc,$4),telefono=COALESCE(telefono,$5) WHERE idcliente=$1',[current.idcliente,address,zoneId,ruc,phone]);
+      return {item:(await pool.query(quickClientSelect,[current.idcliente])).rows[0],reutilizado:true};
+    }
+    const created=(await pool.query('INSERT INTO cliente(nombre_completo,razon_social,ruc,direccion,telefono,fk_idzona_cliente,creado_por) VALUES($1,$1,$2,$3,$4,$5,$6) RETURNING idcliente',[name,ruc,address,phone,zoneId,req.user.login])).rows[0];
+    return {item:(await pool.query(quickClientSelect,[created.idcliente])).rows[0],reutilizado:false};
+  }catch(e){if(e.code==='23505')fail('Ya existe un cliente con ese RUC o teléfono',409);throw e;}
+}));
+router.put('/clientes/:id/zona',route(async req=>{
+  const clientId=id(req.params.id);
+  const zoneId=Number(req.body?.fk_idzona_cliente);
+  if(!Number.isInteger(zoneId)||zoneId<=0)fail('Seleccioná una zona válida');
+  if(!(await pool.query('SELECT 1 FROM zona_cliente WHERE idzona_cliente=$1 AND activo',[zoneId])).rows.length)fail('La zona seleccionada no existe o está inactiva');
+  const updated=await pool.query('UPDATE cliente SET fk_idzona_cliente=$2 WHERE idcliente=$1 AND activo RETURNING idcliente',[clientId,zoneId]);
+  if(!updated.rows.length)fail('Cliente no encontrado o inactivo',404);
+  return {item:(await pool.query(quickClientSelect,[clientId])).rows[0]};
+}));
 router.get('/entregadores',route(async()=>({items:(await pool.query('SELECT identregador_delivery,nombre_completo FROM entregador_delivery WHERE activo ORDER BY nombre_completo,identregador_delivery')).rows})));
 router.get('/productos/:id/ingredientes',route(async req=>{
   const productId=id(req.params.id,0);

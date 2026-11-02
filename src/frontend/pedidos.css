@@ -1,4 +1,4 @@
-﻿.orders-page { display: grid; gap: 8px; }
+.orders-page { display: grid; gap: 8px; }
 .orders-page .page-intro { margin-bottom: 0; }
 .order-actions, .order-fields { display: flex; gap: 12px; flex-wrap: wrap; align-items: end; }
 .delivery-type-field { display: grid; gap: 7px; min-width: min(100%, 390px); }
@@ -199,7 +199,7 @@
 @media (max-width: 900px) { .order-editor-layout { height: auto; } .order-side { height: auto; } .order-side .order-detail { height: auto; max-height: 420px; } }
 @media (max-width: 600px) { .order-header .client-picker { flex-wrap: wrap; } .product-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 
-/* Ajuste 2: encabezado en una sola fila y resumen mÃ¡s compacto para que Guardar quede visible. */
+/* Ajuste 2: encabezado en una sola fila y resumen más compacto para que Guardar quede visible. */
 .order-header .delivery-type-field { min-width: 290px; }
 .order-header .delivery-option { font-size: 11px; padding: 6px 8px; }
 .order-header .client-picker { flex: 1 1 300px; }
@@ -214,7 +214,7 @@
 .order-side .order-totals .grand-total { flex: 1 1 100%; justify-content: space-between; padding-top: 6px; font-size: 20px; color: #20342c; }
 @media (max-width: 1100px) { .order-header-controls { flex-wrap: wrap; } }
 
-/* Ajuste 3: mÃ¡s lugar para buscar cliente. */
+/* Ajuste 3: más lugar para buscar cliente. */
 .order-header .delivery-option span { white-space: nowrap; }
 .order-header .delivery-type-field { min-width: 310px; }
 .order-header .client-picker .new-client-button span { display: none; }
@@ -232,7 +232,7 @@
 .order-side .order-detail .catalog-table-wrap { overflow-x: hidden; }
 .order-side .order-detail .remove-line { width: 22px; }
 
-/* Ajuste 5: mÃ¡s espacio para ver productos (filtros y tarjetas mÃ¡s compactos). */
+/* Ajuste 5: más espacio para ver productos (filtros y tarjetas más compactos). */
 .order-editor-layout { height: max(480px, calc(100dvh - 266px)); }
 .order-workspace .order-picker { padding: 10px; gap: 6px; }
 .order-picker .category-buttons, .order-picker .unit-buttons { gap: 6px; padding-bottom: 4px; scrollbar-width: thin; }
@@ -266,3 +266,52 @@
 .order-side .checkout-summary.is-new .order-totals .grand-total { font-size: 18px; padding-top: 2px; }
 .order-side .checkout-summary.is-new .order-actions { justify-content: flex-end; }
 .order-side .checkout-summary.is-new .order-actions .primary { flex: 0 0 auto; min-width: 170px; min-height: 44px; }
+
+/* Formulario de cuenta: dos columnas (pedidos y totales a la izquierda, cobro a la derecha) para aprovechar el espacio. */
+.modal.account-modal { width: min(900px, 96vw); max-width: 900px; padding: 18px 22px; }
+.account-modal .modal-head h2 { font-size: 18px; }
+.account-modal .modal-head .eyebrow { margin: 0 0 2px; }
+.account-body { display: grid; gap: 12px; }
+.account-body.has-side { grid-template-columns: minmax(0, 1.1fr) minmax(300px, 1fr); gap: 20px; align-items: start; }
+.account-main, .account-side { display: grid; gap: 10px; min-width: 0; align-content: start; }
+.account-modal .catalog-table { min-width: 0; }
+.account-modal .catalog-table th, .account-modal .catalog-table td { padding: 6px 8px; }
+.account-modal .catalog-table-wrap { overflow-x: auto; }
+.account-totals { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; margin: 0; }
+.account-totals > span { display: grid; gap: 2px; justify-content: stretch; padding: 8px 10px; border-radius: 8px; background: #f4f7f5; color: #52665e; font-size: 11px; }
+.account-totals > span strong { color: #20342c; font-size: 15px; }
+.account-totals > span:last-child strong { color: #a54b2b; }
+.account-modal details { font-size: 11px; color: #52665e; }
+.account-modal details p { margin: 2px 0; }
+.account-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.account-actions .secondary { padding: 6px 10px; font-size: 12px; }
+.account-side .form-hint { margin: 0; }
+.account-side .modal-form { margin-top: 0; gap: 8px; }
+.account-side .modal-form h3 { margin: 0; font-size: 14px; }
+.account-side .modal-form label:not(.check-label) { gap: 4px; }
+.account-modal .modal-form input:not([type=checkbox]), .account-modal .modal-form select { padding: 8px 10px; font-size: 14px; }
+.account-side .modal-form .secondary { padding: 6px 10px; font-size: 12px; }
+.account-side .modal-form .primary { min-height: 44px; font-size: 14px; font-weight: 800; }
+@media (max-width: 760px) { .account-body.has-side { grid-template-columns: 1fr; gap: 12px; } .modal.account-modal { padding: 14px; } }
+
+/* Cliente rápido: bloque plegable bajo el encabezado del pedido. */
+.quick-client { margin-top: 8px; padding-top: 8px; border-top: 1px solid #edf0ed; }
+.quick-client > summary { cursor: pointer; font-size: 12px; font-weight: 700; color: #52665e; }
+.quick-client[open] > summary { margin-bottom: 10px; }
+.quick-client-form { display: grid; grid-template-columns: 150px minmax(180px, 2fr) 120px minmax(180px, 2fr) minmax(150px, 1fr) auto; gap: 20px 10px; align-items: end; }
+.quick-client-form label { min-width: 0; }
+.quick-client-form .ruc-input-wrap { flex-wrap: nowrap; }
+.quick-client-form .ruc-input-wrap input { width: 100%; min-width: 0; }
+.quick-client-form .ruc-lookup-button { flex: 0 0 38px; width: 38px; min-height: 38px; padding: 0; }
+@media (max-width: 1100px) { .quick-client-form { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); } }
+.quick-client-form .primary { min-height: 38px; }
+.quick-client-form label { position: relative; }
+.quick-client-form .ruc-status { position: absolute; top: 100%; left: 0; margin-top: 1px; white-space: nowrap; }
+.quick-client-form { padding-bottom: 14px; }
+.delivery-info .zone-change { width: 230px; max-width: 100%; margin-left: 10px; padding: 4px 8px; font-size: 12px; vertical-align: middle; }
+/* En celular el detalle del pedido debe mostrar el nombre del producto. */
+@media (max-width: 620px) { .order-detail .catalog-table th:first-child, .order-detail .catalog-table td:first-child { display: table-cell; } }
+.edit-client-button { display: inline-flex; align-items: center; justify-content: center; flex: 0 0 auto; width: 34px; height: 34px; padding: 0; border: 1px solid #d9e2dd; border-radius: 8px; background: #fff; color: #20342c; cursor: pointer; }
+.edit-client-button svg { width: 17px; height: 17px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.edit-client-button:hover:not(:disabled) { border-color: #efb49e; color: #b4543b; background: #fffaf7; }
+.edit-client-button:disabled { cursor: not-allowed; opacity: .55; }

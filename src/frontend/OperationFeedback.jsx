@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useRef, useState } f
 import { createPortal } from 'react-dom';
 import MoneyInput from './MoneyInput.jsx';
 import { formatMoney } from './formatters.js';
+import FormaPagoBotones, { defaultFormId } from './FormaPagoBotones.jsx';
 import './operation-feedback.css';
 
 const FeedbackContext = createContext(null);
@@ -97,8 +98,7 @@ function OperationFeedbackDialog({ feedback, onDismiss, onHold, onReplace }) {
   const amountValid = amount !== '' && Number.isInteger(amountNumber) && amountNumber >= 1 && amountNumber <= maxAmount;
 
   const openCharge = () => {
-    const cash = advance.formas.find((item) => item.nombre.toLocaleLowerCase() === 'efectivo');
-    setForm(String(cash?.idforma_pago ?? advance.formas[0]?.idforma_pago ?? ''));
+    setForm(defaultFormId(advance.formas));
     setAmount(String(maxAmount));
     setError('');
     setCharging(true);
@@ -155,11 +155,7 @@ function OperationFeedbackDialog({ feedback, onDismiss, onHold, onReplace }) {
       <h2 id="operation-feedback-title">{title}</h2>
       <p id="operation-feedback-message" aria-live="polite">{message}</p>
       {!loading && charging && <form className="operation-feedback-charge" onSubmit={charge}>
-        <label>Forma de pago
-          <select value={form} disabled={busy} onChange={(event) => setForm(event.target.value)}>
-            {advance.formas.map((item) => <option key={item.idforma_pago} value={item.idforma_pago}>{item.nombre}</option>)}
-          </select>
-        </label>
+        <div className="payment-field"><span>Forma de pago</span><FormaPagoBotones forms={advance.formas} disabled={busy} value={form} onChange={setForm} /></div>
         <label>Monto ₲
           <MoneyInput autoFocus min={1} max={maxAmount} disabled={busy} value={amount} onValueChange={setAmount} />
         </label>

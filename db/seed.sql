@@ -105,10 +105,10 @@ ON CONFLICT (documento) DO NOTHING;
 INSERT INTO gasto_tipo (nombre, orden, creado_por) VALUES
   ('Servicios', 1, 'SISTEMA'), ('Mantenimiento', 2, 'SISTEMA'), ('Otros', 3, 'SISTEMA')
 ON CONFLICT (nombre) DO NOTHING;
-INSERT INTO forma_pago (nombre, es_ingreso, es_egreso, orden, creado_por) VALUES
-  ('Efectivo', true, true, 1, 'SISTEMA'), ('Débito', true, true, 2, 'SISTEMA'),
-  ('Crédito', true, true, 3, 'SISTEMA'), ('Transferencia', true, true, 4, 'SISTEMA'),
-  ('Billetera virtual', true, true, 5, 'SISTEMA') ON CONFLICT (nombre) DO NOTHING;
+INSERT INTO forma_pago (nombre, es_ingreso, es_egreso, orden, es_default, creado_por) VALUES
+  ('Efectivo', true, true, 1, true, 'SISTEMA'), ('Débito', true, true, 2, false, 'SISTEMA'),
+  ('Crédito', true, true, 3, false, 'SISTEMA'), ('Transferencia', true, true, 4, false, 'SISTEMA'),
+  ('Billetera virtual', true, true, 5, false, 'SISTEMA') ON CONFLICT (nombre) DO NOTHING;
 INSERT INTO vale (fk_idpersonal, fk_idforma_pago, descripcion, estado, monto_vale, creado_por)
 SELECT p.idpersonal, f.idforma_pago, 'Vale de consumo demo', 'pendiente', 2500, 'SISTEMA'
 FROM personal p CROSS JOIN forma_pago f

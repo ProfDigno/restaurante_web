@@ -14,3 +14,12 @@
 .cash-detail-modal .cash-items td:nth-child(2) { min-width: 180px; }
 .cash-detail-modal .cash-items th:last-child,
 .cash-detail-modal .cash-items td:last-child { min-width: 120px; white-space: nowrap; }
+
+.cash-close-others { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: 12px; color: #52665e; }
+.cash-close-others li { display: flex; justify-content: space-between; gap: 12px; }
+.cash-close-others strong { color: #20342c; }
+.cash-close-pending { margin: 6px 0; padding-left: 18px; font-size: 12px; }
+.cash-page .actions-col .order-list-actions { justify-content: flex-end; align-items: center; }
+.cash-page .actions-col .order-list-actions > * { margin: 0; box-sizing: border-box; }
+.cash-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
+.cash-section-head h3 { margin: 0; }

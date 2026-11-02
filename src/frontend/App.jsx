@@ -15,6 +15,8 @@ import UbicacionMesa from './UbicacionMesa.jsx';
 import Pedidos from './Pedidos.jsx';
 import Comanda from './Comanda.jsx';
 import PedidoVentana from './PedidoVentana.jsx';
+import MesaTablero from './MesaTablero.jsx';
+import MesaVentana from './MesaVentana.jsx';
 import KpiPedidos from './KpiPedidos.jsx';
 import GastoTipo from './GastoTipo.jsx';
 import Gastos from './Gastos.jsx';
@@ -59,20 +61,8 @@ function Sidebar({ menu, active, setActive, collapsed, setCollapsed, user, onLog
   </aside>;
 }
 
-function Header({ active, user, onOpenMenu, section }) {
-  return <header className="topbar"><button className="mobile-menu" onClick={onOpenMenu}>☰</button><div><p className="breadcrumb">{section || 'Operación'} <span>/</span> {active}</p><h1>{active === 'mesas' ? 'Mesas' : active.replaceAll('-', ' ')}</h1></div><div className="topbar-actions"><span className="connection"><span className="status-dot" /> Conectado</span><div className="top-avatar">{user.nombre.slice(0, 1)}</div></div></header>;
-}
-
-function Tables({ tables, loading, error, onOpen, onClose, onRefresh, busy }) {
-  if (loading) return <div className="empty-state"><div className="loader" />Cargando mesas…</div>;
-  if (error) return <div className="alert error">{error}</div>;
-  const free = tables.filter((t) => t.estado === 'libre').length;
-  const occupied = tables.filter((t) => t.estado === 'ocupado').length;
-  return <>
-    <div className="page-intro"><div><p className="eyebrow">SALÓN</p><h2>Estado del salón</h2><p className="muted">Abrí una cuenta cuando llegue el primer cliente y acumulá sus pedidos.</p></div><button className="secondary" onClick={onRefresh}>Actualizar</button></div>
-    <div className="stat-row"><div className="stat-card"><span className="stat-label">Mesas totales</span><strong>{tables.length}</strong><span className="stat-caption">Capacidad configurada</span></div><div className="stat-card free"><span className="stat-label">Disponibles</span><strong>{free}</strong><span className="stat-caption">Listas para recibir</span></div><div className="stat-card busy"><span className="stat-label">Ocupadas</span><strong>{occupied}</strong><span className="stat-caption">Con cuenta abierta</span></div></div>
-    <div className="table-grid">{tables.map((table) => <article className={`table-card ${table.estado}`} key={table.idmesa}><div className="table-card-head"><span className="table-number">Mesa {table.numero}</span><span className={`pill ${table.estado}`}>{table.estado === 'libre' ? 'Libre' : 'Ocupada'}</span></div><div className="table-visual"><div className="table-shape"><span>{table.numero}</span></div><span className="capacity">◉ {table.capacidad} personas</span></div><div className="table-meta"><span>{table.ubicacion || 'Salón'}</span>{table.estado === 'ocupado' && <strong>{money(table.total)}</strong>}</div>{table.estado === 'libre' ? <button disabled={busy === table.idmesa} className="primary full" onClick={() => onOpen(table.idmesa)}>{busy === table.idmesa ? 'Abriendo…' : 'Abrir cuenta'}</button> : <button disabled={busy === table.idcuenta} className="outline full" onClick={() => onClose(table.idcuenta)}>{busy === table.idcuenta ? 'Cerrando…' : 'Ver cuenta / Pedidos'}</button>}</article>)}</div>
-  </>;
+function Header({ active, onOpenMenu }) {
+  return <header className="topbar"><button className="mobile-menu" onClick={onOpenMenu}>☰</button><div className="topbar-title"><h1>{active === 'mesas' ? 'Mesas' : active.replaceAll('-', ' ')}</h1><div id="topbar-sub" className="topbar-sub" /></div><div id="topbar-slot" className="topbar-slot" /></header>;
 }
 
 function Placeholder({ active }) { return <div className="placeholder"><div className="placeholder-icon">✦</div><h2>{active.replaceAll('-', ' ')}</h2><p className="muted">Este módulo ya está disponible en el menú. Vamos a construir su pantalla conectada a la base de datos en el próximo paso.</p></div>; }
@@ -96,10 +86,10 @@ function MainApp() {
   if (!user) return <Login onLogin={establishSession} />;
   if (cashOpen === null) return <main className="login-page"><div className="empty-state"><div className="loader" />Consultando caja…</div></main>;
   if (!cashOpen) return <CajaOpenForm gate user={user} onLogout={logout} onOpened={() => setCashOpen(true)} />;
-  return <div className="app-shell"><div className={`mobile-overlay ${mobileOpen ? 'show' : ''}`} onClick={() => setMobileOpen(false)} /><div className={`sidebar-wrap ${mobileOpen ? 'open' : ''}`}><Sidebar menu={menu} active={active} setActive={navigate} collapsed={collapsed} setCollapsed={setCollapsed} user={user} onLogout={logout} /></div><main className="content"><Header section={menu.find(s => s.items.some(i => i.id === active))?.label} active={current?.label || active} user={user} onOpenMenu={() => setMobileOpen(true)} /><section className="page-content">{!current ? <div className="empty-state">No tenés formularios asignados.</div> : active === 'mesas' ? <Tables tables={tables} loading={loading} error={error} busy={busy} onRefresh={load} onOpen={(id) => doAction(`/api/mesas/${id}/abrir`, id)} onClose={(id) => { setOrderContext({ cuentaId: id }); setActive('pedidos'); }} /> : active === 'historial-mesas' ? <MesaHistorial /> : active === 'pedidos' ? <Pedidos user={user} context={orderContext} onDirtyChange={setOrderDirty} /> : active === 'kpi-pedidos' ? <KpiPedidos /> : active === 'gasto-tipos' ? <GastoTipo /> : active === 'gastos' ? <Gastos /> : active === 'kpi-gastos' ? <KpiGastos /> : active === 'compras' ? <Compra user={user} /> : active === 'proveedores' ? <Proveedor /> : active === 'formas-pago' ? <FormaPago /> : active === 'caja' ? <Caja /> : active === 'ubicaciones-mesa' ? <UbicacionMesa /> : active === 'mesas-config' ? <Mesa /> : active === 'delivery' ? <EntregadorDelivery /> : active === 'ingredientes' ? <Ingrediente /> : active === 'unidades-medida' ? <UnidadMedida /> : active === 'conversiones-unidad' ? <UnidadConversion /> : active === 'grupos' ? <GrupoMenu /> : active === 'categorias' ? <CategoriaMenu /> : active === 'unidades-menu' ? <UnidadMenu /> : active === 'menu' ? <ProductoMenu /> : active === 'zonas' ? <ZonaCliente /> : active === 'clientes' ? <Cliente /> : ['usuarios', 'roles', 'permisos'].includes(active) ? <Security key={active} kind={active} onAccessChange={refreshSession} /> : <Placeholder active={current?.label || active} />}</section></main></div>;
+  return <div className="app-shell"><div className={`mobile-overlay ${mobileOpen ? 'show' : ''}`} onClick={() => setMobileOpen(false)} /><div className={`sidebar-wrap ${mobileOpen ? 'open' : ''}`}><Sidebar menu={menu} active={active} setActive={navigate} collapsed={collapsed} setCollapsed={setCollapsed} user={user} onLogout={logout} /></div><main className="content"><Header active={current?.label || active} onOpenMenu={() => setMobileOpen(true)} /><section className="page-content">{!current ? <div className="empty-state">No tenés formularios asignados.</div> : active === 'mesas' ? <MesaTablero tables={tables} loading={loading} error={error} busy={busy} onRefresh={load} onOpen={(id) => { setOrderContext({ mesaId: id }); setActive('pedidos'); }} onViewAccount={(id) => { setOrderContext({ cuentaId: id }); setActive('pedidos'); }} /> : active === 'historial-mesas' ? <MesaHistorial /> : active === 'pedidos' ? <Pedidos user={user} context={orderContext} onDirtyChange={setOrderDirty} /> : active === 'kpi-pedidos' ? <KpiPedidos /> : active === 'gasto-tipos' ? <GastoTipo /> : active === 'gastos' ? <Gastos /> : active === 'kpi-gastos' ? <KpiGastos /> : active === 'compras' ? <Compra user={user} /> : active === 'proveedores' ? <Proveedor /> : active === 'formas-pago' ? <FormaPago /> : active === 'caja' ? <Caja /> : active === 'ubicaciones-mesa' ? <UbicacionMesa /> : active === 'mesas-config' ? <Mesa /> : active === 'delivery' ? <EntregadorDelivery /> : active === 'ingredientes' ? <Ingrediente /> : active === 'unidades-medida' ? <UnidadMedida /> : active === 'conversiones-unidad' ? <UnidadConversion /> : active === 'grupos' ? <GrupoMenu /> : active === 'categorias' ? <CategoriaMenu /> : active === 'unidades-menu' ? <UnidadMenu /> : active === 'menu' ? <ProductoMenu /> : active === 'zonas' ? <ZonaCliente /> : active === 'clientes' ? <Cliente /> : ['usuarios', 'roles', 'permisos'].includes(active) ? <Security key={active} kind={active} onAccessChange={refreshSession} /> : <Placeholder active={current?.label || active} />}</section></main></div>;
 }
 
 export default function App() {
   const path = window.location.pathname;
-  return path === '/comanda' ? <Comanda /> : path === '/pedido' ? <PedidoVentana /> : <MainApp />;
+  return path === '/comanda' ? <Comanda /> : path === '/pedido' ? <PedidoVentana /> : path === '/mesa' ? <MesaVentana /> : <MainApp />;
 }

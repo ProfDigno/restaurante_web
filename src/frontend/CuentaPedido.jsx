@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { api, mutate, stateName } from './pedidos-api.js';
 import { formatMoney as money } from './formatters.js';
 import MoneyInput from './MoneyInput.jsx';
+import FormaPagoBotones, { defaultFormId } from './FormaPagoBotones.jsx';
 import PedidoErrorDialog from './PedidoErrorDialog.jsx';
 import { useOperationFeedback } from './OperationFeedback.jsx';
 
@@ -32,7 +33,7 @@ export default function CuentaPedido({ accountId, user, onClose, onOrder, onNew,
   setData(account);
   setForms(paymentForms.items);
   setPayments([{
-   fk_idforma_pago: paymentForms.items.find(item => item.nombre.toLocaleLowerCase() === 'efectivo')?.idforma_pago || '',
+   fk_idforma_pago: defaultFormId(paymentForms.items),
    importe: account.saldo
   }]);
  };
@@ -80,7 +81,7 @@ export default function CuentaPedido({ accountId, user, onClose, onOrder, onNew,
    const result = await mutate(`/api/pedidos/cuentas/${accountId}/cobrar`, { pagos: data.saldo === 0 ? [] : payments });
    setData(result.cuenta);
    setPayments([{
-    fk_idforma_pago: forms.find(item => item.nombre.toLocaleLowerCase() === 'efectivo')?.idforma_pago || '',
+    fk_idforma_pago: defaultFormId(forms),
     importe: result.cuenta.saldo
    }]);
    onUpdated?.();
@@ -99,7 +100,8 @@ export default function CuentaPedido({ accountId, user, onClose, onOrder, onNew,
     <button className="modal-close" disabled={busy} onClick={onClose}>×</button>
    </div>
    <PedidoErrorDialog message={error} onAccept={() => setError('')} />
-   {!data ? <p>Cargando cuenta…</p> : <>
+   {!data ? <p>Cargando cuenta…</p> : <div className={`account-body${data.estado === 'abierta' ? ' has-side' : ''}`}>
+    <div className="account-main">
     <div className="catalog-table-wrap">
      <table className="catalog-table">
       <thead><tr><th>Pedido</th><th>Estado</th><th className="numeric-cell">Total</th><th /></tr></thead>
@@ -109,11 +111,11 @@ export default function CuentaPedido({ accountId, user, onClose, onOrder, onNew,
         ? <button type="button" className="order-state-button" aria-label={`Terminar pedido #${order.idpedido}`} disabled={busy} onClick={() => finish(order)}>{finishingId === order.idpedido ? 'PROCESANDO…' : 'TERMINAR'}</button>
         : <span className={order.estado === 'listo' ? 'order-state-text is-finished' : 'order-state-text'}>{stateName(order.estado)}</span>}</td>
        <td className="numeric-cell">{money(order.monto_total)}</td>
-       <td><button className="edit-button" disabled={busy} onClick={() => onOrder(order.idpedido)}>Ver pedido</button></td>
+       <td>{onOrder && <button className="edit-button" disabled={busy} onClick={() => onOrder(order.idpedido)}>Ver pedido</button>}</td>
       </tr>)}</tbody>
      </table>
     </div>
-    <div className="order-totals">
+    <div className="order-totals account-totals">
      <span>Total cuenta <strong>{money(data.total)}</strong></span>
      <span>Cobrado neto <strong>{money(data.cobrado)}</strong></span>
      <span>Saldo <strong>{money(data.saldo)}</strong></span>
@@ -123,16 +125,19 @@ export default function CuentaPedido({ accountId, user, onClose, onOrder, onNew,
      {data.pagos.map(payment => <p key={payment.idpago}>Pago #{payment.idpago} · {payment.nombre} · {payment.estado} · {money(payment.importe)} · devuelto {money(Number(payment.importe) - Number(payment.disponible))}</p>)}
      {data.devoluciones.map(refund => <p key={refund.iddevolucion_pago}>Devolución #{refund.iddevolucion_pago} · pedido #{refund.fk_idpedido} · {money(refund.importe)} · {refund.motivo}</p>)}
     </details>}
-    {data.estado === 'abierta' && <>
-     {data.tipo === 'SALON' && <button className="secondary" disabled={busy} onClick={() => onNew(data)}>+ Nuevo pedido en esta mesa</button>}
-     {data.tipo === 'SALON' && <a className="secondary ticket-link" href={`/api/mesas/cuentas/${accountId}/ticket.pdf`} target="_blank" rel="noopener noreferrer">Imprimir ticket</a>}
+    </div>
+    {data.estado === 'abierta' && <div className="account-side">
+     <div className="account-actions">
+      {data.tipo === 'SALON' && onNew && <button className="secondary" disabled={busy} onClick={() => onNew(data)}>+ Nuevo pedido en esta mesa</button>}
+      {data.tipo === 'SALON' && <a className="secondary ticket-link" href={`/api/mesas/cuentas/${accountId}/ticket.pdf`} target="_blank" rel="noopener noreferrer">Imprimir ticket</a>}
+      {staff && <button className="secondary" disabled={busy} onClick={() => setBox(true)}>Ver / abrir caja</button>}
+     </div>
      {!ready && <p className="form-hint">Primero terminá todos los pedidos para cobrar.</p>}
      {staff && <>
-      <button className="secondary" disabled={busy} onClick={() => setBox(true)}>Ver / abrir caja</button>
       <form className="modal-form" onSubmit={pay}>
        <h3>Cobrar cuenta</h3>
        {data.saldo > 0 && payments.map((payment, index) => <div className="payment-row" key={index}>
-        <label>Forma de pago<select required disabled={busy} value={payment.fk_idforma_pago} onChange={event => setPayments(payments.map((item, itemIndex) => index === itemIndex ? { ...item, fk_idforma_pago: event.target.value } : item))}><option value="">Seleccionar</option>{forms.map(form => <option key={form.idforma_pago} value={form.idforma_pago}>{form.nombre}</option>)}</select></label>
+        <div className="payment-field"><span>Forma de pago</span><FormaPagoBotones forms={forms} disabled={busy} value={payment.fk_idforma_pago} onChange={value => setPayments(payments.map((item, itemIndex) => index === itemIndex ? { ...item, fk_idforma_pago: value } : item))} /></div>
         <label>Importe ₲<MoneyInput min={1} required disabled={busy} className="numeric-cell" value={payment.importe} onValueChange={value => setPayments(payments.map((item, itemIndex) => index === itemIndex ? { ...item, importe: value } : item))} /></label>
         <button type="button" className="edit-button" aria-label={`Quitar pago ${index + 1}`} disabled={busy || payments.length === 1} onClick={() => setPayments(payments.filter((_, itemIndex) => index !== itemIndex))}>×</button>
        </div>)}
@@ -140,9 +145,9 @@ export default function CuentaPedido({ accountId, user, onClose, onOrder, onNew,
        <button className="primary" disabled={busy || !ready}>{busy ? 'Procesando…' : data.saldo === 0 ? 'Cerrar cuenta sin saldo' : 'Confirmar cobro'}</button>
       </form>
      </>}
-    </>}
-   </>}
-   {box && <CajaInicial onClose={() => setBox(false)} />}
+    </div>}
+   </div>}
+   {box &&<CajaInicial onClose={() => setBox(false)} />}
   </div>
  </div>;
 }

@@ -44,6 +44,14 @@ router.get('/', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+router.get('/:id(\\d+)', async (req, res, next) => {
+  try {
+    const found = await pool.query(`${selectClient} WHERE c.idcliente = $1`, [Number(req.params.id)]);
+    if (!found.rows.length) return res.status(404).json({ error: 'Cliente no encontrado' });
+    res.json({ item: found.rows[0] });
+  } catch (error) { next(error); }
+});
+
 router.get('/consulta-ruc', async (req, res, next) => {
   try {
     const ruc = String(req.query.ruc || '').trim();
