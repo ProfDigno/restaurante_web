@@ -28,7 +28,7 @@ router.post('/login', loginRateLimit, async (req, res, next) => {
     }
     clearLoginFailures(req);
     const session = { ...user, permisos: user.permisos || [] };
-    res.cookie('restaurante_token', signSession(session), { httpOnly: true, sameSite: 'lax', secure: process.env.NODE_ENV === 'production', maxAge: 8 * 60 * 60 * 1000 });
+    res.cookie('restaurante_token', signSession(session), { httpOnly: true, sameSite: 'lax', secure: cookieSecure(), maxAge: 8 * 60 * 60 * 1000 });
     res.json({ user: { idusuario: user.idusuario, login: user.login, nombre: user.nombre, rol: user.rol, permisos: user.permisos }, menu: menuForPermissions(user.permisos) });
   } catch (error) { next(error); }
 });
@@ -36,6 +36,12 @@ router.post('/login', loginRateLimit, async (req, res, next) => {
 router.get('/me', requireAuth, (req, res) => {
   res.json({ user: { idusuario: req.user.sub, login: req.user.login, nombre: req.user.nombre, rol: req.user.rol, permisos: req.user.permisos }, menu: menuForPermissions(req.user.permisos) });
 });
+
+// COOKIE_SECURE=false permite servir en producción por HTTP (sin dominio/HTTPS todavía).
+function cookieSecure() {
+  if (process.env.COOKIE_SECURE) return process.env.COOKIE_SECURE === 'true';
+  return process.env.NODE_ENV === 'production';
+}
 
 router.post('/logout', (req, res) => { res.clearCookie('restaurante_token'); res.status(204).end(); });
 

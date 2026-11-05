@@ -39,7 +39,8 @@ app.use(notFound);
 app.use(errorHandler);
 
 const port = Number(process.env.PORT || 3000);
-app.listen(port, () => {
+// HOST=127.0.0.1 en el servidor: solo accesible a través de nginx.
+app.listen(port, process.env.HOST || '0.0.0.0', () => {
   console.log(`Restaurante Web disponible en http://localhost:${port}`);
   // El intervalo de revisión se lee de la configuración de la comanda en cada ciclo.
   const checkExpired = async () => {

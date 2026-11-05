@@ -36,6 +36,8 @@ import { notFound, errorHandler } from './middleware/error.js';
 import { sameOriginWrites } from './middleware/security.js';
 
 const app = express();
+// Detrás de nginx: TRUST_PROXY=loopback para que req.ip sea la IP real del cliente.
+if (process.env.TRUST_PROXY) app.set('trust proxy', process.env.TRUST_PROXY);
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const uploadsDir = path.resolve(__dirname, '../uploads');
 
