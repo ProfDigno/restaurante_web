@@ -14,7 +14,7 @@ export async function renderKpiGastosXlsx(data, restaurante) {
   const ws = wb.addWorksheet(RESUMEN, { views: [{ showGridLines: false }] });
   ws.columns = [{ width: 34 }, { width: 12 }, { width: 18 }, { width: 30 }, { width: 3 }];
   ws.pageSetup = { orientation: 'landscape', fitToPage: true, fitToWidth: 1, fitToHeight: 0 };
-  title(ws, 'Análisis de gastos', `Período: ${isoToText(data.inicio)} al ${isoToText(data.fin)}`, restaurante);
+  title(ws, 'Análisis de gastos', `Período: ${isoToText(data.inicio)} al ${isoToText(data.fin)}${data.filtro ? ` · ${data.filtro}` : ''}`, restaurante);
   let r = indicators(ws, [
     ['Gasto total', s.monto, MONEY, `${change(s.monto, s.anterior.monto)} vs. período anterior`],
     ['Gastos pagados', s.cantidad, '#,##0', `${change(s.cantidad, s.anterior.cantidad)} vs. período anterior`],
@@ -32,7 +32,7 @@ export async function renderKpiGastosXlsx(data, restaurante) {
   wg.columns = [{ width: 8 }, { width: 12 }, { width: 22 }, { width: 46 }, { width: 18 }, { width: 11 }, { width: 16 }, { width: 16 }, { width: 30 }];
   wg.getCell('A1').value = 'Detalle de gastos';
   wg.getCell('A1').font = { bold: true, size: 14 };
-  wg.getCell('A2').value = `Período: ${isoToText(data.inicio)} al ${isoToText(data.fin)} · Los anulados no suman al total`;
+  wg.getCell('A2').value = `Período: ${isoToText(data.inicio)} al ${isoToText(data.fin)}${data.filtro ? ` · ${data.filtro}` : ''} · Los anulados no suman al total`;
   const gh = wg.getRow(4);
   gh.values = ['#', 'Fecha', 'Tipo', 'Descripción', 'Forma de pago', 'Estado', 'Importe', 'Registrado por', 'Motivo de anulación'];
   styleHeaderRow(gh);

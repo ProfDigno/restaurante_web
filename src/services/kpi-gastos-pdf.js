@@ -4,7 +4,7 @@ import { money } from './ticket-pdf.js';
 // Reporte A4 del Análisis de gastos: indicadores, gráficos y detalle de los gastos del período.
 export function renderKpiGastosPdf(data, restaurante, printedAt = new Date()) {
   const s = data.resumen;
-  const report = new PdfReport({ title: 'Análisis de gastos', inicio: data.inicio, fin: data.fin, restaurante, printedAt });
+  const report = new PdfReport({ title: 'Análisis de gastos', inicio: data.inicio, fin: data.fin, restaurante, filtro: data.filtro, printedAt });
   report.cards([
     ['Gasto total', money(s.monto), `${change(s.monto, s.anterior.monto)} vs. período anterior`],
     ['Gastos pagados', integer(s.cantidad), `${change(s.cantidad, s.anterior.cantidad)} vs. período anterior`],

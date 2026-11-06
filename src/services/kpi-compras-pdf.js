@@ -6,7 +6,7 @@ const estadoTexto = c => c.estado === 'cancelada' ? 'Cancelada' : c.estado === '
 
 export function renderKpiComprasPdf(data, restaurante, printedAt = new Date()) {
   const s = data.resumen;
-  const report = new PdfReport({ title: 'Análisis de compras', inicio: data.inicio, fin: data.fin, restaurante, printedAt });
+  const report = new PdfReport({ title: 'Análisis de compras', inicio: data.inicio, fin: data.fin, restaurante, filtro: data.filtro, printedAt });
   report.cards([
     ['Total comprado', money(s.monto), `${change(s.monto, s.anterior.monto)} vs. período anterior`],
     ['Compras recibidas', integer(s.cantidad), `${change(s.cantidad, s.anterior.cantidad)} vs. período anterior`],

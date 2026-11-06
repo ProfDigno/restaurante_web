@@ -5,10 +5,12 @@ import { weekNames } from './kpi-gastos.js';
 // Suman solo las compras recibidas; borradores y canceladas se informan aparte.
 const numeric = (rows, fields) => rows.map(row => Object.fromEntries(Object.entries(row).map(([key, value]) => [key, fields.includes(key) ? Number(value || 0) : value])));
 
-export async function kpiCompras(inicio, fin, { detalle = false } = {}) {
-  const dates = [inicio, fin];
-  const range = "c.fecha_compra >= $1::date AND c.fecha_compra < ($2::date + INTERVAL '1 day')";
-  const previous = "c.fecha_compra >= ($1::date - (($2::date - $1::date) + 1)) AND c.fecha_compra < $1::date";
+// proveedor (opcional): id de proveedor; filtra todos los indicadores, gráficos y el detalle.
+export async function kpiCompras(inicio, fin, { detalle = false, proveedor = null } = {}) {
+  const dates = [inicio, fin, proveedor];
+  const bySupplier = '($3::int IS NULL OR c.fk_idproveedor=$3::int)';
+  const range = `c.fecha_compra >= $1::date AND c.fecha_compra < ($2::date + INTERVAL '1 day') AND ${bySupplier}`;
+  const previous = `c.fecha_compra >= ($1::date - (($2::date - $1::date) + 1)) AND c.fecha_compra < $1::date AND ${bySupplier}`;
   const borradorTotal = '(SELECT COALESCE(sum(d.cantidad*d.precio_compra),0) FROM detalle_compra_producto d WHERE d.fk_idcompra=c.idcompra)';
   const [summary, daily, suppliers, conditions, forms, products, list] = await Promise.all([
     pool.query(`SELECT
@@ -25,7 +27,7 @@ export async function kpiCompras(inicio, fin, { detalle = false } = {}) {
       FROM compra c`, dates),
     pool.query(`SELECT to_char(d.dia,'YYYY-MM-DD') AS fecha,count(c.idcompra)::int AS cantidad,COALESCE(sum(c.total),0) AS monto
       FROM generate_series($1::date,$2::date,INTERVAL '1 day') AS d(dia)
-      LEFT JOIN compra c ON c.fecha_compra >= d.dia AND c.fecha_compra < d.dia + INTERVAL '1 day' AND c.estado='recibida'
+      LEFT JOIN compra c ON c.fecha_compra >= d.dia AND c.fecha_compra < d.dia + INTERVAL '1 day' AND c.estado='recibida' AND ${bySupplier}
       GROUP BY d.dia ORDER BY d.dia`, dates),
     pool.query(`SELECT p.idproveedor AS id,p.nombre,count(*)::int AS cantidad,sum(c.total) AS monto,sum(c.total-c.importe_pagado) AS saldo
       FROM compra c JOIN proveedor p ON p.idproveedor=c.fk_idproveedor
@@ -51,12 +53,13 @@ export async function kpiCompras(inicio, fin, { detalle = false } = {}) {
       WHERE ${range} ORDER BY c.fecha_compra,c.idcompra`, dates) : Promise.resolve({ rows: [] })
   ]);
   const s = summary.rows[0];
+  const filtro = proveedor ? (await pool.query('SELECT nombre FROM proveedor WHERE idproveedor=$1', [proveedor])).rows[0]?.nombre || null : null;
   const monto = Number(s.monto), pagado = Number(s.pagado);
   const dias = numeric(daily.rows, ['monto']);
   const semana = weekNames.map(nombre => ({ nombre, cantidad: 0, monto: 0 }));
   for (const day of dias) { const i = new Date(`${day.fecha}T12:00:00Z`).getUTCDay(); semana[i].cantidad += day.cantidad; semana[i].monto += day.monto; }
   return {
-    inicio, fin,
+    inicio, fin, filtro: filtro ? `Proveedor: ${filtro}` : null,
     resumen: {
       cantidad: s.cantidad, monto, promedio: s.cantidad ? monto / s.cantidad : 0, pagado, saldo: monto - pagado,
       pendientes: s.pendientes_cantidad,
@@ -71,4 +74,10 @@ export async function kpiCompras(inicio, fin, { detalle = false } = {}) {
     productos: numeric(products.rows, ['monto', 'unidades']),
     compras: numeric(list.rows, ['monto', 'pagado', 'saldo'])
   };
+}
+
+// Opciones del filtro: proveedores activos y los inactivos que tienen compras.
+export async function kpiComprasOpciones() {
+  return { proveedores: (await pool.query(`SELECT p.idproveedor AS id,p.nombre,p.activo FROM proveedor p
+    WHERE p.activo OR EXISTS (SELECT 1 FROM compra c WHERE c.fk_idproveedor=p.idproveedor) ORDER BY p.nombre`)).rows };
 }

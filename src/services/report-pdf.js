@@ -27,7 +27,7 @@ function fit(doc, value, width) {
 }
 
 export class PdfReport {
-  constructor({ title, inicio, fin, restaurante, printedAt = new Date() }) {
+  constructor({ title, inicio, fin, restaurante, filtro = null, printedAt = new Date() }) {
     this.title = title; this.inicio = inicio; this.fin = fin;
     this.doc = new PDFDocument({ size: 'A4', margin: 0, bufferPages: true, compress: true, info: { Title: `${title} ${inicio} a ${fin}`, Author: 'Restaurante Web' } });
     this.y = M;
@@ -36,7 +36,9 @@ export class PdfReport {
     if (nombre) { doc.font('Helvetica').fontSize(9).fillColor(muted).text(nombre, M, this.y); this.y += 13; }
     doc.font('Helvetica-Bold').fontSize(20).fillColor(ink).text(title, M, this.y); this.y += 26;
     doc.font('Helvetica').fontSize(9.5).fillColor(muted).text(`Período: ${isoToText(inicio)} al ${isoToText(fin)}   ·   Generado: ${dateTime(printedAt)}`, M, this.y);
-    this.y += 22;
+    this.y += 14;
+    if (filtro) { doc.font('Helvetica-Bold').fontSize(9.5).fillColor('#d26d4f').text(`Filtro · ${filtro}`, M, this.y); this.y += 14; }
+    this.y += 8;
   }
   ensure(height) { if (this.y + height > BOTTOM) { this.doc.addPage(); this.y = M; } }
   newPage() { this.doc.addPage(); this.y = M; }

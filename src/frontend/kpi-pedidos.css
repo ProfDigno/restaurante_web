@@ -5,3 +5,4 @@
 .kpi-hero { justify-content: flex-end; padding: 12px 18px; }
 /* Botones de exportación (Excel / PDF) de los análisis. */
 .kpi-export{display:flex;gap:8px;margin-left:4px}.kpi-export-button{display:inline-flex;align-items:center;gap:7px;height:39px;box-sizing:border-box;text-decoration:none;padding:0 13px}.kpi-export-button svg{width:20px;height:20px;flex:0 0 auto}.kpi-export-button.disabled{opacity:.5;cursor:not-allowed}
+.kpi-filters .kpi-filter-select{height:39px;min-width:170px;max-width:240px;padding:0 10px;border:1px solid #d9e0e9;border-radius:9px;background:white;color:#24334a;font:inherit;font-size:13px}
