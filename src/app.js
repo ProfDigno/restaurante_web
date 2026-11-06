@@ -27,6 +27,8 @@ import gastoTipoRoutes from './routes/gasto-tipo.routes.js';
 import gastoRoutes from './routes/gasto.routes.js';
 import kpiGastoRoutes from './routes/kpi-gasto.routes.js';
 import kpiCompraRoutes from './routes/kpi-compra.routes.js';
+import personalRoutes from './routes/personal.routes.js';
+import valeRoutes from './routes/vale.routes.js';
 import proveedorRoutes from './routes/proveedor.routes.js';
 import compraRoutes from './routes/compra.routes.js';
 import facturaRoutes from './routes/factura.routes.js';
@@ -80,6 +82,8 @@ app.use('/api/gasto-tipos', requireAuth, requirePermission('gasto-tipos'), gasto
 app.use('/api/gastos', requireAuth, requirePermission('gastos'), gastoRoutes);
 app.use('/api/kpi-gastos', requireAuth, requirePermission('kpi-gastos'), kpiGastoRoutes);
 app.use('/api/kpi-compras', requireAuth, requirePermission('kpi-compras'), kpiCompraRoutes);
+app.use('/api/personal', requireAuth, requirePermission('personal'), personalRoutes);
+app.use('/api/vales', requireAuth, requirePermission('vales'), valeRoutes);
 app.use('/api/proveedores', requireAuth, requirePermission('proveedores'), proveedorRoutes);
 app.use('/api/compras', requireAuth, requirePermission('compras'), compraRoutes);
 app.use('/api/facturas', requireAuth, requirePermission('facturas'), facturaRoutes);

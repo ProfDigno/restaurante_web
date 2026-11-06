@@ -15,8 +15,13 @@ export const menuSections = [
     id: 'usuarios', label: 'Usuarios', icon: '◎', items: [
       { id: 'usuarios', label: 'Usuarios', path: '/usuarios' },
       { id: 'roles', label: 'Roles', path: '/roles' },
-      { id: 'permisos', label: 'Permisos', path: '/permisos' },
-      { id: 'personal', label: 'Personal', path: '/personal' }
+      { id: 'permisos', label: 'Permisos', path: '/permisos' }
+    ]
+  },
+  {
+    id: 'rrhh', label: 'RR.HH.', icon: '◎', items: [
+      { id: 'personal', label: 'Personal', path: '/personal' },
+      { id: 'vales', label: 'Vales', path: '/vales' }
     ]
   },
   {
@@ -48,7 +53,6 @@ export const menuSections = [
       { id: 'caja', label: 'Caja general', path: '/caja' },
       { id: 'arqueos', label: 'Arqueos', path: '/arqueos' },
       { id: 'pagos', label: 'Pagos', path: '/pagos' },
-      { id: 'vales', label: 'Vales', path: '/vales' },
       { id: 'formas-pago', label: 'Formas de pago', path: '/formas-pago' }
     ]
   },
@@ -90,7 +94,7 @@ export const implementedForms = new Set([
   'mesas', 'historial-mesas', 'pedidos', 'comanda', 'kpi-pedidos', 'delivery', 'menu', 'categorias', 'grupos',
   'unidades-menu', 'ubicaciones-mesa', 'mesas-config', 'ingredientes',
   'unidades-medida', 'conversiones-unidad', 'caja', 'formas-pago', 'gastos', 'kpi-gastos', 'gasto-tipos',
-  'clientes', 'zonas', 'usuarios', 'roles', 'permisos', 'compras', 'kpi-compras', 'proveedores',
+  'clientes', 'zonas', 'usuarios', 'roles', 'permisos', 'compras', 'kpi-compras', 'proveedores', 'personal', 'vales',
   'facturas', 'datos-restaurante', 'configuracion-comanda'
 ]);
 

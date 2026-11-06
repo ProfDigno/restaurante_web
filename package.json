@@ -1,6 +1,6 @@
 {
   "name": "restaurante-web",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -26,10 +26,12 @@
     "db:migrate-compra-pagos": "node db/migrate-compra-pagos.js",
     "db:migrate-ubicacion-mesa": "node db/migrate-ubicacion-mesa.js",
     "db:migrate-kpi-compras": "node db/migrate-kpi-compras.js",
+    "db:migrate-rrhh": "node db/migrate-rrhh.js",
     "test:pedidos": "node db/test-pedidos-web.js && node db/test-pedidos-http.js",
     "test:form-permissions": "node db/test-form-permissions.js",
     "test:comanda": "node db/test-comanda.js",
-    "test:facturas": "node db/test-facturas.js"
+    "test:facturas": "node db/test-facturas.js",
+    "test:rrhh": "node db/test-rrhh.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

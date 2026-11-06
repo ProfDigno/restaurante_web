@@ -24,7 +24,10 @@ import KpiPedidos from './KpiPedidos.jsx';
 import GastoTipo from './GastoTipo.jsx';
 import Gastos from './Gastos.jsx';
 import KpiGastos from './KpiGastos.jsx';
+import Sidebar from './Sidebar.jsx';
 import KpiCompras from './KpiCompras.jsx';
+import Personal from './Personal.jsx';
+import Vales from './Vales.jsx';
 import Compra from './Compra.jsx';
 import Proveedor from './Proveedor.jsx';
 import FormaPago from './FormaPago.jsx';
@@ -56,20 +59,6 @@ function Login({ onLogin }) {
   </div></main>;
 }
 
-function Sidebar({ menu, active, setActive, collapsed, setCollapsed, user, onLogout }) {
-  const [open, setOpen] = useState(() => Object.fromEntries(menu.map((s) => [s.id, true])));
-  return <aside className={`sidebar ${collapsed ? 'collapsed' : ''}`}>
-    <div className="sidebar-top"><div className="brand"><span className="brand-mark small">R</span>{!collapsed && <span>Restaurante<span className="brand-dot">.</span></span>}</div><button className="icon-button collapse-button" onClick={() => setCollapsed(!collapsed)} aria-label="Contraer menú">{collapsed ? '›' : '‹'}</button></div>
-    <nav className="nav">{menu.map((section) => <div className="nav-section" key={section.id}>
-      {!collapsed && <button className="section-title" onClick={() => setOpen({ ...open, [section.id]: !open[section.id] })}><span><i>{section.icon}</i>{section.label}</span><span>{open[section.id] ? '⌃' : '⌄'}</span></button>}
-      {(collapsed || open[section.id]) && section.items.map((item) => item.id === 'comanda' || item.external
-        ? <a key={item.id} href={item.path} target="_blank" rel="noopener noreferrer" title={collapsed ? item.label : undefined} className="nav-item"><span className="nav-icon">{item.label.slice(0, 1)}</span>{!collapsed && <span>{item.label}</span>}</a>
-        : <button key={item.id} title={collapsed ? item.label : undefined} className={`nav-item ${active === item.id ? 'active' : ''}`} onClick={() => setActive(item.id)}><span className="nav-icon">{item.label.slice(0, 1)}</span>{!collapsed && <span>{item.label}</span>}</button>)}
-    </div>)}</nav>
-    <div className="sidebar-user"><div className="avatar">{user.nombre.slice(0, 1)}</div>{!collapsed && <div className="user-copy"><strong>{user.nombre}</strong><span>{user.rol}</span></div>}{!collapsed && <button className="logout" onClick={onLogout}>Salir</button>}</div>
-  </aside>;
-}
-
 function Header({ active, onOpenMenu }) {
   return <header className="topbar"><button className="mobile-menu" onClick={onOpenMenu}>☰</button><div className="topbar-title"><h1>{active === 'mesas' ? 'Mesas' : active.replaceAll('-', ' ')}</h1><div id="topbar-sub" className="topbar-sub" /></div><div id="topbar-slot" className="topbar-slot" /></header>;
 }
@@ -95,7 +84,7 @@ function MainApp() {
   if (!user) return <Login onLogin={establishSession} />;
   if (cashOpen === null) return <main className="login-page"><div className="empty-state"><div className="loader" />Consultando caja…</div></main>;
   if (!cashOpen) return <CajaOpenForm gate user={user} onLogout={logout} onOpened={() => setCashOpen(true)} />;
-  return <div className="app-shell"><div className={`mobile-overlay ${mobileOpen ? 'show' : ''}`} onClick={() => setMobileOpen(false)} /><div className={`sidebar-wrap ${mobileOpen ? 'open' : ''}`}><Sidebar menu={menu} active={active} setActive={navigate} collapsed={collapsed} setCollapsed={setCollapsed} user={user} onLogout={logout} /></div><main className="content"><Header active={current?.label || active} onOpenMenu={() => setMobileOpen(true)} /><section className="page-content">{!current ? <div className="empty-state">No tenés formularios asignados.</div> : active === 'mesas' ? <MesaTablero tables={tables} loading={loading} error={error} busy={busy} onRefresh={load} onOpen={(id) => { setOrderContext({ mesaId: id }); setActive('pedidos'); }} onViewAccount={(id) => { setOrderContext({ cuentaId: id }); setActive('pedidos'); }} /> : active === 'historial-mesas' ? <MesaHistorial /> : active === 'pedidos' ? <Pedidos user={user} context={orderContext} onDirtyChange={setOrderDirty} onInvoice={(pedidoId) => { setOrderDirty(false); setOrderContext({ facturaPedidoId: pedidoId }); setActive('facturas'); }} /> : active === 'facturas' ? <Factura pedidoId={orderContext?.facturaPedidoId || null} /> : active === 'datos-restaurante' ? <DatosRestaurante /> : active === 'configuracion-comanda' ? <ComandaConfig /> : active === 'kpi-pedidos' ? <KpiPedidos /> : active === 'gasto-tipos' ? <GastoTipo /> : active === 'gastos' ? <Gastos /> : active === 'kpi-gastos' ? <KpiGastos /> : active === 'kpi-compras' ? <KpiCompras /> : active === 'compras' ? <Compra user={user} /> : active === 'proveedores' ? <Proveedor /> : active === 'formas-pago' ? <FormaPago /> : active === 'caja' ? <Caja /> : active === 'ubicaciones-mesa' ? <UbicacionMesa /> : active === 'mesas-config' ? <Mesa /> : active === 'delivery' ? <EntregadorDelivery /> : active === 'ingredientes' ? <Ingrediente /> : active === 'unidades-medida' ? <UnidadMedida /> : active === 'conversiones-unidad' ? <UnidadConversion /> : active === 'grupos' ? <GrupoMenu /> : active === 'categorias' ? <CategoriaMenu /> : active === 'unidades-menu' ? <UnidadMenu /> : active === 'menu' ? <ProductoMenu /> : active === 'zonas' ? <ZonaCliente /> : active === 'clientes' ? <Cliente /> : ['usuarios', 'roles', 'permisos'].includes(active) ? <Security key={active} kind={active} onAccessChange={refreshSession} /> : <Placeholder active={current?.label || active} />}</section></main></div>;
+  return <div className="app-shell"><div className={`mobile-overlay ${mobileOpen ? 'show' : ''}`} onClick={() => setMobileOpen(false)} /><div className={`sidebar-wrap ${mobileOpen ? 'open' : ''}`}><Sidebar menu={menu} active={active} setActive={navigate} collapsed={collapsed} setCollapsed={setCollapsed} user={user} onLogout={logout} /></div><main className="content"><Header active={current?.label || active} onOpenMenu={() => setMobileOpen(true)} /><section className="page-content">{!current ? <div className="empty-state">No tenés formularios asignados.</div> : active === 'mesas' ? <MesaTablero tables={tables} loading={loading} error={error} busy={busy} onRefresh={load} onOpen={(id) => { setOrderContext({ mesaId: id }); setActive('pedidos'); }} onViewAccount={(id) => { setOrderContext({ cuentaId: id }); setActive('pedidos'); }} /> : active === 'historial-mesas' ? <MesaHistorial /> : active === 'pedidos' ? <Pedidos user={user} context={orderContext} onDirtyChange={setOrderDirty} onInvoice={(pedidoId) => { setOrderDirty(false); setOrderContext({ facturaPedidoId: pedidoId }); setActive('facturas'); }} /> : active === 'facturas' ? <Factura pedidoId={orderContext?.facturaPedidoId || null} /> : active === 'datos-restaurante' ? <DatosRestaurante /> : active === 'configuracion-comanda' ? <ComandaConfig /> : active === 'kpi-pedidos' ? <KpiPedidos /> : active === 'gasto-tipos' ? <GastoTipo /> : active === 'gastos' ? <Gastos /> : active === 'kpi-gastos' ? <KpiGastos /> : active === 'kpi-compras' ? <KpiCompras /> : active === 'personal' ? <Personal /> : active === 'vales' ? <Vales /> : active === 'compras' ? <Compra user={user} /> : active === 'proveedores' ? <Proveedor /> : active === 'formas-pago' ? <FormaPago /> : active === 'caja' ? <Caja /> : active === 'ubicaciones-mesa' ? <UbicacionMesa /> : active === 'mesas-config' ? <Mesa /> : active === 'delivery' ? <EntregadorDelivery /> : active === 'ingredientes' ? <Ingrediente /> : active === 'unidades-medida' ? <UnidadMedida /> : active === 'conversiones-unidad' ? <UnidadConversion /> : active === 'grupos' ? <GrupoMenu /> : active === 'categorias' ? <CategoriaMenu /> : active === 'unidades-menu' ? <UnidadMenu /> : active === 'menu' ? <ProductoMenu /> : active === 'zonas' ? <ZonaCliente /> : active === 'clientes' ? <Cliente /> : ['usuarios', 'roles', 'permisos'].includes(active) ? <Security key={active} kind={active} onAccessChange={refreshSession} /> : <Placeholder active={current?.label || active} />}</section></main></div>;
 }
 
 export default function App() {

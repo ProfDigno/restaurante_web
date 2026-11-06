@@ -1,0 +1,34 @@
+/* RR.HH.: Personal y Vales */
+.rrhh-modal { width: min(100%, 620px); max-height: 94vh; overflow: auto; }
+.rrhh-pay { border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px 14px; margin: 0; display: grid; gap: 12px; }
+.rrhh-pay legend { padding: 0 6px; color: #53655f; font-size: 12px; font-weight: 700; }
+.rrhh-pay-options { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; }
+.rrhh-pay-options button { display: grid; gap: 2px; padding: 9px 6px; border: 1px solid var(--line); border-radius: 10px; background: #fff; color: var(--ink); font: inherit; cursor: pointer; text-align: center; }
+.rrhh-pay-options button strong { font-size: 13px; }
+.rrhh-pay-options button small { color: var(--muted); font-size: 11px; }
+.rrhh-pay-options button:hover { border-color: #efb49e; }
+.rrhh-pay-options button.active { border-color: var(--accent); background: #fff4ef; box-shadow: 0 0 0 2px #d26d4f26; }
+.rrhh-pay-options button.active small { color: #b4543b; }
+.pay-pill { display: inline-block; padding: 4px 9px; border-radius: 20px; font-size: 11px; font-weight: 800; }
+.pay-diario { background: #fff2df; color: #a86512; }
+.pay-semanal { background: #e8f1ff; color: #2c63b1; }
+.pay-quincenal { background: #f1e9fb; color: #7a4fae; }
+.pay-mensual { background: #e7f4eb; color: #3f8a5e; }
+.rrhh-warning { background: #fff8e6; color: #8a5a00; border: 1px solid #f2dca6; margin-bottom: 12px; }
+.rrhh-total-row td { font-weight: 800; background: #fbfcfa; border-top: 2px solid var(--line); }
+@media (max-width: 600px) { .rrhh-pay-options { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+.rrhh-filters { display: flex; flex-wrap: wrap; align-items: end; gap: 10px 14px; margin-bottom: 14px; padding: 12px 14px; background: #fff; border: 1px solid var(--line); border-radius: 12px; }
+.rrhh-filters label { display: grid; gap: 5px; font-size: 12px; font-weight: 700; color: #53655f; }
+.rrhh-filters input, .rrhh-filters select { height: 36px; padding: 0 10px; border: 1px solid #dce5df; border-radius: 8px; background: #fff; color: var(--ink); font: inherit; font-size: 13px; }
+.rrhh-filters select { min-width: 160px; }
+/* Formulario de Personal: cada campo ocupa su columna (sin desbordar) y todos comparten el mismo estilo. */
+.rrhh-modal { overflow-x: hidden; }
+.rrhh-modal .form-grid > label, .rrhh-modal .modal-form > label { min-width: 0; }
+.rrhh-modal .modal-form input:not([type=checkbox]), .rrhh-modal .modal-form select, .rrhh-modal .modal-form textarea {
+  width: 100%; min-width: 0; box-sizing: border-box; height: 44px; padding: 0 13px;
+  border: 1px solid #dce5df; border-radius: 9px; background: #fff; color: var(--ink); font: inherit; font-size: 14px; outline: 0;
+}
+.rrhh-modal .modal-form textarea { height: auto; min-height: 64px; padding: 10px 13px; }
+.rrhh-modal .modal-form input:not([type=checkbox]):focus, .rrhh-modal .modal-form textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #d26d4f1c; }
+.rrhh-modal .modal-form input[type=text].money-input { text-align: right; font-weight: 700; font-size: 14px; }
+.rrhh-modal .rrhh-pay .form-grid label { display: grid; gap: 7px; }

@@ -275,7 +275,13 @@ CREATE TABLE personal (
   documento varchar(40) UNIQUE,
   telefono varchar(40),
   limite_monto_vale numeric(14,0) NOT NULL DEFAULT 0 CHECK (limite_monto_vale >= 0),
-  activo boolean NOT NULL DEFAULT true
+  activo boolean NOT NULL DEFAULT true,
+  cargo varchar(80),
+  direccion varchar(250),
+  fecha_ingreso date,
+  tipo_pago varchar(10) NOT NULL DEFAULT 'MENSUAL' CONSTRAINT personal_tipo_pago_valido CHECK (tipo_pago IN ('DIARIO','SEMANAL','QUINCENAL','MENSUAL')),
+  monto_pago numeric(14,0) NOT NULL DEFAULT 0 CONSTRAINT personal_monto_pago_valido CHECK (monto_pago >= 0),
+  observacion varchar(500)
 );
 
 CREATE TABLE gasto_tipo (
@@ -842,12 +848,13 @@ BEGIN
   SELECT activo, limite_monto_vale INTO v_activo, v_limite
   FROM personal WHERE idpersonal = NEW.fk_idpersonal;
   IF NOT FOUND THEN RAISE EXCEPTION 'El personal % no existe', NEW.fk_idpersonal; END IF;
-  IF NOT v_activo THEN RAISE EXCEPTION 'El personal % está inactivo', NEW.fk_idpersonal; END IF;
-  IF NEW.monto_vale > v_limite THEN
+  IF TG_OP = 'INSERT' AND NOT v_activo THEN RAISE EXCEPTION 'El personal % está inactivo', NEW.fk_idpersonal; END IF;
+  -- limite_monto_vale = 0 significa "sin límite".
+  IF v_limite > 0 AND NEW.monto_vale > v_limite THEN
     RAISE EXCEPTION 'El monto del vale % supera el límite permitido de %', NEW.monto_vale, v_limite;
   END IF;
   SELECT activo, es_egreso INTO v_forma_activa, v_es_egreso FROM forma_pago WHERE idforma_pago = NEW.fk_idforma_pago;
-  IF NOT FOUND OR NOT v_forma_activa THEN RAISE EXCEPTION 'La forma de pago no existe o está inactiva'; END IF;
+  IF NOT FOUND OR (TG_OP = 'INSERT' AND NOT v_forma_activa) THEN RAISE EXCEPTION 'La forma de pago no existe o está inactiva'; END IF;
   IF NEW.estado = 'pagado' AND NOT v_es_egreso THEN RAISE EXCEPTION 'La forma de pago no admite egresos'; END IF;
   IF TG_OP = 'UPDATE' AND NEW.estado IS DISTINCT FROM OLD.estado AND NOT (
     (OLD.estado = 'pendiente' AND NEW.estado IN ('pagado', 'anulado')) OR

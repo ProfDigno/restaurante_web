@@ -13,7 +13,7 @@ try {
   const allCodes = formDefinitions.map(form => form.code);
   for (const [role, codes] of [
     ['admin', allCodes],
-    ['encargado', allCodes.filter(code => !['FORM_USUARIOS', 'FORM_ROLES', 'FORM_PERMISOS'].includes(code))],
+    ['encargado', allCodes.filter(code => !['FORM_USUARIOS', 'FORM_ROLES', 'FORM_PERMISOS', 'FORM_PERSONAL', 'FORM_VALES'].includes(code))],
     ['mozo', ['FORM_MESAS', 'FORM_PEDIDOS', 'FORM_COMANDA']]
   ]) {
     await client.query(`INSERT INTO usuario_rol_item(fk_idusuario_rol,fk_idusuario_rol_evento,creado_por)
