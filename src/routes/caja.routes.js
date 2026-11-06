@@ -5,6 +5,7 @@ import { operation, integer, id, fail } from '../services/pedidos.js';
 import { renderCajaTicket } from '../services/caja-ticket.js';
 
 const router = Router();
+const validDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value || '') && !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
 const formAccess = requireCurrentForm;
 const route = (fn) => async (req, res, next) => {
   try { res.json(await fn(req)); }
@@ -81,10 +82,15 @@ router.post('/abrir', route((req) => operation(req, async (client) => {
 router.get('/', formAccess, route(async (req) => {
   const page = integer(req.query.page || 1, 'Página', 1);
   const pageSize = [25, 50, 100].includes(Number(req.query.pageSize)) ? Number(req.query.pageSize) : 25;
+  const { inicio, fin } = req.query;
+  if ((inicio && !validDate(inicio)) || (fin && !validDate(fin)) || (inicio && fin && inicio > fin)) fail('Rango de fechas inválido');
+  // Filtra las cajas cerradas por fecha de apertura; la caja abierta se muestra siempre.
+  const range = `cg.estado='cerrada' AND ($1::date IS NULL OR cg.fecha_apertura >= $1::date) AND ($2::date IS NULL OR cg.fecha_apertura < $2::date + INTERVAL '1 day')`;
+  const dates = [inicio || null, fin || null];
   const [open, closed, count] = await Promise.all([
     pool.query(`${summarySql} WHERE cg.estado='abierta'`),
-    pool.query(`${summarySql} WHERE cg.estado='cerrada' ORDER BY cg.idcaja_gral DESC LIMIT $1 OFFSET $2`, [pageSize, (page - 1) * pageSize]),
-    pool.query("SELECT count(*)::int AS total FROM caja_gral WHERE estado='cerrada'")
+    pool.query(`${summarySql} WHERE ${range} ORDER BY cg.idcaja_gral DESC LIMIT $3 OFFSET $4`, [...dates, pageSize, (page - 1) * pageSize]),
+    pool.query(`SELECT count(*)::int AS total FROM caja_gral cg WHERE ${range}`, dates)
   ]);
   const total = count.rows[0].total;
   return { abierta: open.rows[0] || null, cerradas: closed.rows, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
