@@ -1,0 +1,48 @@
+/* Menú lateral en acordeón: secciones (menú) y páginas (submenú) con jerarquía visual clara. */
+.side { --side-head: #e6ede9; --side-sub: #a3b2ac; --side-hover: #233030; --side-line: #34433f; --side-accent: var(--accent); }
+.side-nav { display: flex; flex-direction: column; gap: 4px; overflow-y: auto; margin: 0 -6px; padding: 0 6px 12px; scrollbar-width: thin; scrollbar-color: #34433f transparent; }
+
+/* Sección (menú principal) */
+.side-head { width: 100%; display: flex; align-items: center; gap: 11px; border: 0; background: transparent; color: var(--side-head); font: inherit; font-size: 13.5px; font-weight: 600; padding: 9px 10px; border-radius: 11px; cursor: pointer; text-align: left; transition: background .15s ease, color .15s ease; }
+.side-head:hover { background: var(--side-hover); }
+.side-head:focus-visible, .side-sub:focus-visible, .side-mini:focus-visible { outline: 2px solid #f0b49a; outline-offset: 1px; }
+.side-icon { flex: 0 0 auto; width: 32px; height: 32px; display: grid; place-items: center; border-radius: 9px; background: #26332f; color: #c9d6cf; transition: background .15s ease, color .15s ease; }
+.side-icon-svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+.side-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side-count { min-width: 20px; padding: 1px 6px; border-radius: 10px; background: #26332f; color: #8fa199; font-size: 10.5px; font-weight: 700; text-align: center; transition: opacity .15s ease; }
+.side-chevron { flex: 0 0 auto; width: 16px; height: 16px; fill: none; stroke: #7f918a; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; transition: transform .2s ease, stroke .15s ease; }
+
+.side-section.open > .side-head { background: #1f2a28; color: #fff; }
+.side-section.open > .side-head .side-chevron { transform: rotate(90deg); stroke: #e8efeb; }
+.side-section.open > .side-head .side-count { opacity: 0; }
+/* Sección de la página actual: ícono en color de acento aunque esté cerrada. */
+.side-section.current > .side-head .side-icon { background: var(--side-accent); color: #fff; box-shadow: 0 4px 12px #d26d4f40; }
+.side-section.current:not(.open) > .side-head { color: #fff; }
+
+/* Panel desplegable (submenú) con animación de alto */
+.side-panel { display: grid; grid-template-rows: 0fr; transition: grid-template-rows .22s ease; }
+.side-section.open > .side-panel { grid-template-rows: 1fr; }
+.side-panel-inner { overflow: hidden; }
+.side-list { position: relative; display: flex; flex-direction: column; gap: 1px; margin: 4px 0 8px 26px; padding-left: 12px; border-left: 1.5px solid var(--side-line); }
+
+/* Página (submenú) */
+.side-sub { position: relative; width: 100%; display: flex; align-items: center; gap: 10px; border: 0; background: transparent; color: var(--side-sub); font: inherit; font-size: 12.5px; font-weight: 500; padding: 7px 10px; border-radius: 8px; cursor: pointer; text-align: left; text-decoration: none; transition: background .15s ease, color .15s ease; }
+.side-sub:hover { background: var(--side-hover); color: #fff; }
+.side-dot { flex: 0 0 auto; width: 6px; height: 6px; border-radius: 50%; background: #4a5b56; transition: background .15s ease, transform .15s ease; }
+.side-sub:hover .side-dot { background: #c9d6cf; }
+.side-sub-label { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.side-external { color: #6f817a; font-size: 11px; }
+.side-sub.active { background: #d26d4f24; color: #fff; font-weight: 700; }
+.side-sub.active .side-dot { background: var(--side-accent); transform: scale(1.35); box-shadow: 0 0 0 3px #d26d4f33; }
+/* Marca de la página activa sobre la línea guía */
+.side-sub.active::before { content: ""; position: absolute; left: -13.5px; top: 7px; bottom: 7px; width: 3px; border-radius: 3px; background: var(--side-accent); }
+
+/* Menú contraído (solo íconos) */
+.side-mini-group { display: flex; flex-direction: column; gap: 3px; padding: 6px 0; border-bottom: 1px solid #26332f; }
+.side-mini-group:last-child { border-bottom: 0; }
+.side-mini { width: 100%; display: grid; place-items: center; border: 0; background: transparent; padding: 6px 0; border-radius: 10px; cursor: pointer; text-decoration: none; }
+.side-mini:hover { background: var(--side-hover); }
+.side-mini-icon { width: 30px; height: 30px; display: grid; place-items: center; border-radius: 8px; background: #26332f; color: #dae5df; font-size: 12px; font-weight: 800; }
+.side-mini.active .side-mini-icon { background: var(--side-accent); color: #fff; }
+
+@media (prefers-reduced-motion: reduce) { .side-panel, .side-chevron, .side-head, .side-sub { transition: none; } }
