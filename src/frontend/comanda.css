@@ -1,9 +1,5 @@
-.comanda-page { min-height: 100vh; padding: 16px; overflow-x: auto; background: #eef1ef; color: #17201f; font-family: Arial, sans-serif; }
+.comanda-page { min-height: 100vh; padding: 6px 8px; overflow-x: auto; background: #eef1ef; color: #17201f; font-family: Arial, sans-serif; }
 .nav-item[href="/comanda"] { text-decoration: none; }
-.comanda-header { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 16px; }
-.comanda-header span { font-size: 12px; font-weight: 800; letter-spacing: .14em; }
-.comanda-header h1 { margin: 2px 0 0; font-size: clamp(30px, 3vw, 42px); letter-spacing: -.04em; }
-.comanda-header > strong { padding: 9px 13px; border-radius: 10px; background: #17201f; color: white; font-size: 17px; white-space: nowrap; }
 .comanda-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); min-width: 1100px; gap: 10px; align-items: start; }
 .comanda-card { display: flex; flex-direction: column; gap: 10px; min-width: 0; min-height: 285px; padding: 12px; border: 2px solid #17201f; border-radius: 12px; box-shadow: 0 5px 16px #17201f20; overflow-wrap: anywhere; }
 .comanda-card { background: #fff; }
@@ -29,7 +25,12 @@
 .comanda-finish:disabled { opacity: .55; cursor: wait; }
 .comanda-cancelled { padding: 8px; border: 2px solid currentColor; text-align: center; font-size: 21px; font-weight: 900; }
 .comanda-error { margin-bottom: 16px; padding: 14px; border: 2px solid #aa2424; border-radius: 8px; background: #fff; color: #8f1717; font-size: 18px; }
-.comanda-empty, .comanda-access { padding: 42px; background: #fff; border-radius: 14px; font-size: 22px; }
+.comanda-access { padding: 42px; background: #fff; border-radius: 14px; font-size: 22px; }
+.comanda-empty { padding: 10px 14px; background: #fff; border-radius: 10px; font-size: 14px; }
 .comanda-access { max-width: 640px; margin: 12vh auto; }
-@media (max-width: 600px) { .comanda-page { padding: 10px; } .comanda-header { align-items: flex-start; flex-direction: column; gap: 8px; } }
+@media (max-width: 600px) { .comanda-page { padding: 6px; } }
 @media (prefers-reduced-motion: reduce) { .comanda-card.cancelled { animation: none; background: #e52323; color: #fff; } }
+.comanda-legend { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; margin: 0 0 6px; font-size: 11px; color: #4a5753; }
+.comanda-legend-item { display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
+.comanda-legend-item i { width: 10px; height: 10px; border: 1px solid #17201f80; border-radius: 3px; }
+.comanda-legend-item.is-empty { opacity: .5; }

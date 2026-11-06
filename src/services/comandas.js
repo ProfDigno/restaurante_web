@@ -12,7 +12,8 @@ export async function listComandas() {
   const config = {
     colores: settings.colores.map(({ desde_minuto, color }) => ({ desde_minuto, color })),
     anulado_visible_seg: settings.anulado_visible_seg,
-    refresco_seg: settings.refresco_seg
+    refresco_seg: settings.refresco_seg,
+    limite_terminado_min: settings.pase_automatico ? settings.limite_terminado_min : null
   };
   const { rows: pedidos } = await pool.query(`
     SELECT p.idpedido, p.estado, p.version_web, p.tipo_entrega, p.observacion,

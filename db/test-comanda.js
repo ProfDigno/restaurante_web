@@ -90,7 +90,8 @@ try {
   assert.equal(served.refresco_seg, 3);
   assert.equal(served.anulado_visible_seg, 30);
   assert.equal(served.colores.length, 6);
-  assert.ok(!('chequeo_limite_seg' in served) && !('limite_terminado_min' in served));
+  assert.equal(served.limite_terminado_min, 60);
+  assert.ok(!('chequeo_limite_seg' in served) && !('pase_automatico' in served));
   const save = (patch, status = 200) => call('/api/comanda-config', { method: 'PUT', body: { ...defaults, ...patch }, status });
   const tramos = [{ desde_minuto: 0, color: '#FFFFFF' }, { desde_minuto: 1, color: '#ff0000' }];
   assert.match((await save({ colores: [{ desde_minuto: 5, color: '#ffffff' }] }, 400)).error, /minuto 0/);

@@ -14,6 +14,7 @@ const DEFAULT_CONFIG = {
 };
 // Color del último tramo cuyo minuto de inicio ya se alcanzó.
 const ageColor = (seconds, colores) => colores.reduce((found, tramo) => seconds >= tramo.desde_minuto * 60 ? tramo.color : found, colores[0].color);
+const ageStep = (seconds, colores) => colores.reduce((found, tramo, index) => seconds >= tramo.desde_minuto * 60 ? index : found, 0);
 
 export default function Comanda() {
   const [access, setAccess] = useState('loading');
@@ -64,8 +65,15 @@ export default function Comanda() {
 
   if (access !== 'allowed') return <main className="comanda-page"><div className="comanda-access"><h1>COMANDA</h1><p>{access === 'loading' ? 'Cargando…' : 'Iniciá sesión con un usuario autorizado para ver las comandas.'}</p>{access === 'denied' && <a href="/">Ir a Restaurante Web</a>}</div></main>;
   const visible = items.filter(item => item.estado !== 'cancelado' || item.anulado_segundos + (now - fetchedAt) / 1000 < config.anulado_visible_seg);
+  const waiting = visible.filter(item => item.estado !== 'cancelado');
+  const counts = config.colores.map(() => 0);
+  for (const item of waiting) counts[ageStep(Math.max(0, item.edad_segundos + Math.floor((now - fetchedAt) / 1000)), config.colores)] += 1;
   return <main className="comanda-page">
-    <header className="comanda-header"><div><span>OPERACIÓN</span><h1>COMANDA</h1></div><strong>{visible.filter(item => item.estado !== 'cancelado').length} EN COCINA</strong></header>
+    <p className="comanda-legend" aria-label="Tiempo, color y cantidad de comandas">
+      <span>Tiempo:</span>
+      {config.colores.map((tramo, index) => <span className={`comanda-legend-item${counts[index] ? '' : ' is-empty'}`} key={tramo.desde_minuto}><i style={{ background: tramo.color }} />{tramo.desde_minuto}′ · {counts[index]}</span>)}
+      <span>{config.limite_terminado_min ? `Pasa a TERMINADO a los ${config.limite_terminado_min}′` : 'Sin pase automático'} · {waiting.length} en total</span>
+    </p>
     {error && <div className="comanda-error" role="alert">{error}</div>}
     <section className="comanda-grid" aria-label="Pedidos de cocina">
       {visible.length === 0 && <div className="comanda-empty">No hay pedidos en cocina.</div>}
