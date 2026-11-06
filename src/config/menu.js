@@ -62,6 +62,7 @@ export const menuSections = [
   {
     id: 'compra', label: 'Compra', icon: '▤', items: [
       { id: 'compras', label: 'Compra', path: '/compras' },
+      { id: 'kpi-compras', label: 'Análisis de compras', path: '/kpi-compras' },
       { id: 'proveedores', label: 'Proveedor', path: '/proveedores' }
     ]
   },
@@ -89,7 +90,7 @@ export const implementedForms = new Set([
   'mesas', 'historial-mesas', 'pedidos', 'comanda', 'kpi-pedidos', 'delivery', 'menu', 'categorias', 'grupos',
   'unidades-menu', 'ubicaciones-mesa', 'mesas-config', 'ingredientes',
   'unidades-medida', 'conversiones-unidad', 'caja', 'formas-pago', 'gastos', 'kpi-gastos', 'gasto-tipos',
-  'clientes', 'zonas', 'usuarios', 'roles', 'permisos', 'compras', 'proveedores',
+  'clientes', 'zonas', 'usuarios', 'roles', 'permisos', 'compras', 'kpi-compras', 'proveedores',
   'facturas', 'datos-restaurante', 'configuracion-comanda'
 ]);
 

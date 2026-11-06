@@ -34,7 +34,7 @@ try {
     return data;
   }
   const admin = await call('/api/auth/me');
-  assert.equal(admin.user.permisos.filter(code => code.startsWith('FORM_')).length, 30);
+  assert.equal(admin.user.permisos.filter(code => code.startsWith('FORM_')).length, 31);
   assert.deepEqual(admin.menu.map(section => section.label), ['Operación', 'Usuarios', 'Cliente', 'Productos', 'Mesas', 'Caja y finanzas', 'Gasto', 'Compra', 'Factura', 'Configuración del sistema']);
   assert.deepEqual(admin.menu.map(section => section.items.map(item => item.id)), [
     ['mesas', 'solo-mesas', 'historial-mesas', 'pedidos', 'solo-pedido', 'comanda', 'kpi-pedidos'],
@@ -44,7 +44,7 @@ try {
     ['ubicaciones-mesa', 'mesas-config'],
     ['caja', 'formas-pago'],
     ['gastos', 'kpi-gastos', 'gasto-tipos'],
-    ['compras', 'proveedores'],
+    ['compras', 'kpi-compras', 'proveedores'],
     ['facturas'],
     ['datos-restaurante', 'configuracion-comanda']
   ]);
@@ -69,6 +69,9 @@ try {
   await call('/api/compras', { as: 'mozo', status: 403 });
   await call('/api/proveedores', { as: 'mozo', status: 403 });
   await call('/api/kpi-gastos?inicio=2026-10-17&fin=2026-10-17', { as: 'mozo', status: 403 });
+  await call('/api/kpi-compras?inicio=2026-10-17&fin=2026-10-17', { as: 'mozo', status: 403 });
+  await call('/api/kpi-compras?inicio=2026-10-18&fin=2026-10-17', { status: 400 });
+  assert.equal((await call('/api/kpi-compras?inicio=2026-10-17&fin=2026-10-19')).resumen.cantidad, 0);
   await call('/api/kpi-gastos?inicio=2026-10-18&fin=2026-10-17', { status: 400 });
   const emptyExpenseKpi=await call('/api/kpi-gastos?inicio=2026-10-17&fin=2026-10-19');
   assert.equal(emptyExpenseKpi.dias.length,3); assert.equal(emptyExpenseKpi.resumen.cantidad,0);

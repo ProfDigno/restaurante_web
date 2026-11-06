@@ -24,6 +24,7 @@ import KpiPedidos from './KpiPedidos.jsx';
 import GastoTipo from './GastoTipo.jsx';
 import Gastos from './Gastos.jsx';
 import KpiGastos from './KpiGastos.jsx';
+import KpiCompras from './KpiCompras.jsx';
 import Compra from './Compra.jsx';
 import Proveedor from './Proveedor.jsx';
 import FormaPago from './FormaPago.jsx';
@@ -32,6 +33,10 @@ import Security from './Security.jsx';
 import { formatMoney } from './formatters.js';
 
 const money = formatMoney;
+
+// Inyectadas por Vite al compilar (vite.config.js); en desarrollo sin build quedan como 'dev'.
+const appVersion = typeof __APP_VERSION__ === 'undefined' ? 'dev' : __APP_VERSION__;
+const appBuildDate = typeof __APP_BUILD_DATE__ === 'undefined' ? '' : __APP_BUILD_DATE__;
 
 function Login({ onLogin }) {
   const [login, setLogin] = useState('');
@@ -47,6 +52,7 @@ function Login({ onLogin }) {
   return <main className="login-page"><div className="login-card">
     <div className="brand-mark">R</div><p className="eyebrow">RESTAURANTE WEB</p><h1>Bienvenido</h1><p className="muted">Ingresá para gestionar tu salón.</p>
     <form onSubmit={submit} className="login-form"><label>Usuario<input value={login} onChange={(e) => setLogin(e.target.value)} autoComplete="username" placeholder="admin" /></label><label>Contraseña<input type="password" value={password} onChange={(e) => setPassword(e.target.value)} autoComplete="current-password" /></label>{error && <div className="alert error">{error}</div>}<button className="primary full">Ingresar</button></form>
+    <p className="login-version" title={`Compilado el ${appBuildDate}`}>Versión {appVersion}</p>
   </div></main>;
 }
 
@@ -89,7 +95,7 @@ function MainApp() {
   if (!user) return <Login onLogin={establishSession} />;
   if (cashOpen === null) return <main className="login-page"><div className="empty-state"><div className="loader" />Consultando caja…</div></main>;
   if (!cashOpen) return <CajaOpenForm gate user={user} onLogout={logout} onOpened={() => setCashOpen(true)} />;
-  return <div className="app-shell"><div className={`mobile-overlay ${mobileOpen ? 'show' : ''}`} onClick={() => setMobileOpen(false)} /><div className={`sidebar-wrap ${mobileOpen ? 'open' : ''}`}><Sidebar menu={menu} active={active} setActive={navigate} collapsed={collapsed} setCollapsed={setCollapsed} user={user} onLogout={logout} /></div><main className="content"><Header active={current?.label || active} onOpenMenu={() => setMobileOpen(true)} /><section className="page-content">{!current ? <div className="empty-state">No tenés formularios asignados.</div> : active === 'mesas' ? <MesaTablero tables={tables} loading={loading} error={error} busy={busy} onRefresh={load} onOpen={(id) => { setOrderContext({ mesaId: id }); setActive('pedidos'); }} onViewAccount={(id) => { setOrderContext({ cuentaId: id }); setActive('pedidos'); }} /> : active === 'historial-mesas' ? <MesaHistorial /> : active === 'pedidos' ? <Pedidos user={user} context={orderContext} onDirtyChange={setOrderDirty} onInvoice={(pedidoId) => { setOrderDirty(false); setOrderContext({ facturaPedidoId: pedidoId }); setActive('facturas'); }} /> : active === 'facturas' ? <Factura pedidoId={orderContext?.facturaPedidoId || null} /> : active === 'datos-restaurante' ? <DatosRestaurante /> : active === 'configuracion-comanda' ? <ComandaConfig /> : active === 'kpi-pedidos' ? <KpiPedidos /> : active === 'gasto-tipos' ? <GastoTipo /> : active === 'gastos' ? <Gastos /> : active === 'kpi-gastos' ? <KpiGastos /> : active === 'compras' ? <Compra user={user} /> : active === 'proveedores' ? <Proveedor /> : active === 'formas-pago' ? <FormaPago /> : active === 'caja' ? <Caja /> : active === 'ubicaciones-mesa' ? <UbicacionMesa /> : active === 'mesas-config' ? <Mesa /> : active === 'delivery' ? <EntregadorDelivery /> : active === 'ingredientes' ? <Ingrediente /> : active === 'unidades-medida' ? <UnidadMedida /> : active === 'conversiones-unidad' ? <UnidadConversion /> : active === 'grupos' ? <GrupoMenu /> : active === 'categorias' ? <CategoriaMenu /> : active === 'unidades-menu' ? <UnidadMenu /> : active === 'menu' ? <ProductoMenu /> : active === 'zonas' ? <ZonaCliente /> : active === 'clientes' ? <Cliente /> : ['usuarios', 'roles', 'permisos'].includes(active) ? <Security key={active} kind={active} onAccessChange={refreshSession} /> : <Placeholder active={current?.label || active} />}</section></main></div>;
+  return <div className="app-shell"><div className={`mobile-overlay ${mobileOpen ? 'show' : ''}`} onClick={() => setMobileOpen(false)} /><div className={`sidebar-wrap ${mobileOpen ? 'open' : ''}`}><Sidebar menu={menu} active={active} setActive={navigate} collapsed={collapsed} setCollapsed={setCollapsed} user={user} onLogout={logout} /></div><main className="content"><Header active={current?.label || active} onOpenMenu={() => setMobileOpen(true)} /><section className="page-content">{!current ? <div className="empty-state">No tenés formularios asignados.</div> : active === 'mesas' ? <MesaTablero tables={tables} loading={loading} error={error} busy={busy} onRefresh={load} onOpen={(id) => { setOrderContext({ mesaId: id }); setActive('pedidos'); }} onViewAccount={(id) => { setOrderContext({ cuentaId: id }); setActive('pedidos'); }} /> : active === 'historial-mesas' ? <MesaHistorial /> : active === 'pedidos' ? <Pedidos user={user} context={orderContext} onDirtyChange={setOrderDirty} onInvoice={(pedidoId) => { setOrderDirty(false); setOrderContext({ facturaPedidoId: pedidoId }); setActive('facturas'); }} /> : active === 'facturas' ? <Factura pedidoId={orderContext?.facturaPedidoId || null} /> : active === 'datos-restaurante' ? <DatosRestaurante /> : active === 'configuracion-comanda' ? <ComandaConfig /> : active === 'kpi-pedidos' ? <KpiPedidos /> : active === 'gasto-tipos' ? <GastoTipo /> : active === 'gastos' ? <Gastos /> : active === 'kpi-gastos' ? <KpiGastos /> : active === 'kpi-compras' ? <KpiCompras /> : active === 'compras' ? <Compra user={user} /> : active === 'proveedores' ? <Proveedor /> : active === 'formas-pago' ? <FormaPago /> : active === 'caja' ? <Caja /> : active === 'ubicaciones-mesa' ? <UbicacionMesa /> : active === 'mesas-config' ? <Mesa /> : active === 'delivery' ? <EntregadorDelivery /> : active === 'ingredientes' ? <Ingrediente /> : active === 'unidades-medida' ? <UnidadMedida /> : active === 'conversiones-unidad' ? <UnidadConversion /> : active === 'grupos' ? <GrupoMenu /> : active === 'categorias' ? <CategoriaMenu /> : active === 'unidades-menu' ? <UnidadMenu /> : active === 'menu' ? <ProductoMenu /> : active === 'zonas' ? <ZonaCliente /> : active === 'clientes' ? <Cliente /> : ['usuarios', 'roles', 'permisos'].includes(active) ? <Security key={active} kind={active} onAccessChange={refreshSession} /> : <Placeholder active={current?.label || active} />}</section></main></div>;
 }
 
 export default function App() {

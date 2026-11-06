@@ -1,6 +1,7 @@
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import path from 'node:path';
+import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import authRoutes from './routes/auth.routes.js';
 import menuRoutes from './routes/menu.routes.js';
@@ -25,6 +26,7 @@ import cajaRoutes from './routes/caja.routes.js';
 import gastoTipoRoutes from './routes/gasto-tipo.routes.js';
 import gastoRoutes from './routes/gasto.routes.js';
 import kpiGastoRoutes from './routes/kpi-gasto.routes.js';
+import kpiCompraRoutes from './routes/kpi-compra.routes.js';
 import proveedorRoutes from './routes/proveedor.routes.js';
 import compraRoutes from './routes/compra.routes.js';
 import facturaRoutes from './routes/factura.routes.js';
@@ -35,6 +37,9 @@ import { requireAuth, requirePermission } from './middleware/auth.js';
 import { notFound, errorHandler } from './middleware/error.js';
 import { sameOriginWrites } from './middleware/security.js';
 
+// Versión de package.json, informada en /api/health para comprobar qué está desplegado.
+const { version: appVersion } = JSON.parse(readFileSync(new URL('../package.json', import.meta.url), 'utf8'));
+
 const app = express();
 // Detrás de nginx: TRUST_PROXY=loopback para que req.ip sea la IP real del cliente.
 if (process.env.TRUST_PROXY) app.set('trust proxy', process.env.TRUST_PROXY);
@@ -44,7 +49,7 @@ const uploadsDir = path.resolve(__dirname, '../uploads');
 app.use(express.json());
 app.use(cookieParser());
 app.use('/api', sameOriginWrites);
-app.get('/api/health', (req, res) => res.json({ ok: true, service: 'restaurante-web' }));
+app.get('/api/health', (req, res) => res.json({ ok: true, service: 'restaurante-web', version: appVersion }));
 app.use('/uploads', express.static(uploadsDir, { maxAge: '1h' }));
 app.use('/api/auth', authRoutes);
 app.use('/api/menu', menuRoutes);
@@ -74,6 +79,7 @@ app.use('/api/cajas', requireAuth, (req, res, next) =>
 app.use('/api/gasto-tipos', requireAuth, requirePermission('gasto-tipos'), gastoTipoRoutes);
 app.use('/api/gastos', requireAuth, requirePermission('gastos'), gastoRoutes);
 app.use('/api/kpi-gastos', requireAuth, requirePermission('kpi-gastos'), kpiGastoRoutes);
+app.use('/api/kpi-compras', requireAuth, requirePermission('kpi-compras'), kpiCompraRoutes);
 app.use('/api/proveedores', requireAuth, requirePermission('proveedores'), proveedorRoutes);
 app.use('/api/compras', requireAuth, requirePermission('compras'), compraRoutes);
 app.use('/api/facturas', requireAuth, requirePermission('facturas'), facturaRoutes);

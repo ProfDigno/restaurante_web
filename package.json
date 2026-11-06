@@ -1,6 +1,6 @@
 {
   "name": "restaurante-web",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -25,6 +25,7 @@
     "db:migrate-form-permissions": "node db/migrate-form-permissions.js",
     "db:migrate-compra-pagos": "node db/migrate-compra-pagos.js",
     "db:migrate-ubicacion-mesa": "node db/migrate-ubicacion-mesa.js",
+    "db:migrate-kpi-compras": "node db/migrate-kpi-compras.js",
     "test:pedidos": "node db/test-pedidos-web.js && node db/test-pedidos-http.js",
     "test:form-permissions": "node db/test-form-permissions.js",
     "test:comanda": "node db/test-comanda.js",
@@ -34,8 +35,10 @@
     "bcryptjs": "^2.4.3",
     "cookie-parser": "^1.4.7",
     "dotenv": "^16.4.7",
+    "exceljs": "4.4.0",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
+    "jszip": "3.10.1",
     "multer": "^2.4.0",
     "pdfkit": "^0.20.2",
     "pg": "^8.13.1",
