@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { pool } from '../config/database.js';
 import { operation, integer, id, fail, textRequired } from '../services/pedidos.js';
+import { renderGastoTicket } from '../services/gasto-ticket.js';
+import { restaurantInfo, sendPdf } from '../services/ticket-pdf.js';
 
 const router=Router();
 const route=fn=>async(req,res,next)=>{try{res.json(await fn(req));}catch(error){if(['P0001','23514','23503','23505'].includes(error.code))error.status=error.code==='23505'?409:400;next(error);}};
@@ -49,4 +51,12 @@ router.post('/:id/anular',route(req=>operation(req,async c=>{
   await c.query("UPDATE gasto SET estado='anulado',fecha_anulado=CURRENT_TIMESTAMP,anulado_por=$1,motivo_anulado=$2 WHERE idgasto=$3",[req.user.login,motivo,gastoId]);
   return {item:(await c.query(`${select} WHERE g.idgasto=$1`,[gastoId])).rows[0]};
 })));
+router.get('/:id/ticket.pdf',async(req,res,next)=>{
+  try{
+    const gastoId=id(req.params.id);
+    const gasto=(await pool.query(`${select} WHERE g.idgasto=$1`,[gastoId])).rows[0];
+    if(!gasto)return res.status(404).json({error:'Gasto no encontrado'});
+    sendPdf(res,await renderGastoTicket({gasto,restaurante:await restaurantInfo(pool)}),`gasto-${gastoId}.pdf`);
+  }catch(error){next(error);}
+});
 export default router;

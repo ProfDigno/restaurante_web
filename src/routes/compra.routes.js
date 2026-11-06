@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import { pool } from '../config/database.js';
 import { operation, integer, id, fail, textRequired } from '../services/pedidos.js';
+import { renderCompraTicket } from '../services/compra-ticket.js';
+import { restaurantInfo, sendPdf } from '../services/ticket-pdf.js';
 
 const router=Router();
 const route=fn=>async(req,res,next)=>{try{res.json(await fn(req));}catch(error){if(['P0001','23514','23503','23505'].includes(error.code))error.status=error.code==='23505'?409:400;next(error);}};
@@ -46,6 +48,12 @@ router.get('/',route(async req=>{
   return {items,total,page,pageSize:size,totalPages:Math.max(1,Math.ceil(total/size))};
 }));
 router.get('/:id',route(req=>full(pool,req.params.id)));
+router.get('/:id/ticket.pdf',async(req,res,next)=>{
+  try{
+    const compra=await full(pool,req.params.id);
+    sendPdf(res,await renderCompraTicket({compra,restaurante:await restaurantInfo(pool)}),`compra-${compra.idcompra}.pdf`);
+  }catch(error){next(error);}
+});
 async function saveDraft(c,req,editing){
   const body=req.body||{},proveedorId=id(body.fk_idproveedor);
   if(body.confirmar!==true&&(![undefined,null,'',0,'0'].includes(body.anticipo)||body.fk_idforma_pago))fail('Para registrar un pago inicial, confirmá la compra; el borrador no registra pagos');
