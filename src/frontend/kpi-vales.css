@@ -1,0 +1,9 @@
+.kpi-grid > .voucher-wide { grid-column: 1 / -1; }
+.voucher-chart { margin-top: 14px; }
+.voucher-table-wrap { margin-top: 14px; }
+.voucher-table td small { display: block; color: #7b8899; font-size: 11px; margin-top: 2px; }
+.voucher-badge { display: inline-block; min-width: 56px; padding: 3px 8px; border-radius: 99px; font-weight: 700; font-size: 12px; text-align: center; }
+.voucher-badge.is-low { background: #e3f3ec; color: #24704e; }
+.voucher-badge.is-mid { background: #fdf3dc; color: #8a6312; }
+.voucher-badge.is-high { background: #fbe6e1; color: #a14b3f; }
+.voucher-badge.is-none { background: #eef1f4; color: #7b8899; }

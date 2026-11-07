@@ -31,6 +31,7 @@ INSERT INTO usuario_rol_evento (nombre, descripcion, codigo_evento, creado_por) 
   ('Análisis de compras', 'Acceso al análisis de compras', 'FORM_KPI_COMPRAS', 'SISTEMA'),
   ('Personal', 'Acceso al formulario Personal (RR.HH.)', 'FORM_PERSONAL', 'SISTEMA'),
   ('Vales', 'Acceso al formulario Vales (RR.HH.)', 'FORM_VALES', 'SISTEMA'),
+  ('Análisis de vales', 'Acceso al análisis de vales del personal (RR.HH.)', 'FORM_KPI_VALES', 'SISTEMA'),
   ('Compra', 'Acceso al formulario Compra', 'FORM_COMPRAS', 'SISTEMA'),
   ('Proveedor', 'Acceso al formulario Proveedor', 'FORM_PROVEEDORES', 'SISTEMA'),
   ('Tipos de gasto', 'Acceso al formulario Tipos de gasto', 'FORM_GASTO_TIPOS', 'SISTEMA'),
@@ -59,7 +60,7 @@ ON CONFLICT (codigo_evento) DO NOTHING;
 INSERT INTO usuario_rol_item (fk_idusuario_rol, fk_idusuario_rol_evento, creado_por)
 SELECT r.idusuario_rol, e.idusuario_rol_evento, 'SISTEMA'
 FROM usuario_rol r JOIN usuario_rol_evento e ON e.codigo_evento LIKE 'FORM_%'
-WHERE r.rol = 'admin' OR (r.rol = 'encargado' AND e.codigo_evento NOT IN ('FORM_USUARIOS','FORM_ROLES','FORM_PERMISOS','FORM_PERSONAL','FORM_VALES','FORM_AUDITORIA'))
+WHERE r.rol = 'admin' OR (r.rol = 'encargado' AND e.codigo_evento NOT IN ('FORM_USUARIOS','FORM_ROLES','FORM_PERMISOS','FORM_PERSONAL','FORM_VALES','FORM_KPI_VALES','FORM_AUDITORIA'))
   OR (r.rol = 'mozo' AND e.codigo_evento IN ('FORM_MESAS','FORM_PEDIDOS','FORM_COMANDA'))
 ON CONFLICT (fk_idusuario_rol, fk_idusuario_rol_evento) DO NOTHING;
 INSERT INTO usuario (login, nombre, password_hash, fk_idusuario_rol, creado_por)

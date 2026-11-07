@@ -41,7 +41,7 @@ try {
 
   // Permisos: solo admin ve RR.HH.
   const me = await call('/api/auth/me');
-  assert.deepEqual(me.menu.find(s => s.id === 'rrhh').items.map(i => i.id), ['personal', 'vales']);
+  assert.deepEqual(me.menu.find(s => s.id === 'rrhh').items.map(i => i.id), ['personal', 'vales', 'kpi-vales']);
   for (const rol of ['encargado', 'mozo']) {
     await call('/api/personal', { as: rol, status: 403 });
     await call('/api/vales', { as: rol, status: 403 });

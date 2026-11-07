@@ -29,13 +29,15 @@
     "db:migrate-rrhh": "node db/migrate-rrhh.js",
     "db:migrate-auditoria": "node db/migrate-auditoria.js",
     "db:migrate-rentabilidad": "node db/migrate-rentabilidad.js",
+    "db:migrate-kpi-vales": "node db/migrate-kpi-vales.js",
     "test:pedidos": "node db/test-pedidos-web.js && node db/test-pedidos-http.js",
     "test:form-permissions": "node db/test-form-permissions.js",
     "test:comanda": "node db/test-comanda.js",
     "test:facturas": "node db/test-facturas.js",
     "test:rrhh": "node db/test-rrhh.js",
     "test:auditoria": "node db/test-auditoria.js",
-    "test:rentabilidad": "node db/test-rentabilidad.js"
+    "test:rentabilidad": "node db/test-rentabilidad.js",
+    "test:kpi-vales": "node db/test-kpi-vales.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

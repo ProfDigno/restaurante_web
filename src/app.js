@@ -37,6 +37,7 @@ import comandaConfigRoutes from './routes/comanda-config.routes.js';
 import securityRoutes from './routes/security.routes.js';
 import auditoriaRoutes from './routes/auditoria.routes.js';
 import kpiRentabilidadRoutes from './routes/kpi-rentabilidad.routes.js';
+import kpiValeRoutes from './routes/kpi-vale.routes.js';
 import { requireAuth, requirePermission } from './middleware/auth.js';
 import { notFound, errorHandler } from './middleware/error.js';
 import { sameOriginWrites } from './middleware/security.js';
@@ -87,6 +88,7 @@ app.use('/api/kpi-gastos', requireAuth, requirePermission('kpi-gastos'), kpiGast
 app.use('/api/kpi-compras', requireAuth, requirePermission('kpi-compras'), kpiCompraRoutes);
 app.use('/api/personal', requireAuth, requirePermission('personal'), personalRoutes);
 app.use('/api/vales', requireAuth, requirePermission('vales'), valeRoutes);
+app.use('/api/kpi-vales', requireAuth, requirePermission('kpi-vales'), kpiValeRoutes);
 app.use('/api/proveedores', requireAuth, requirePermission('proveedores'), proveedorRoutes);
 app.use('/api/compras', requireAuth, requirePermission('compras'), compraRoutes);
 app.use('/api/facturas', requireAuth, requirePermission('facturas'), facturaRoutes);
