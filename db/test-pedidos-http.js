@@ -167,6 +167,8 @@ try {
  const cancellation={clave:randomUUID(),motivo:'Prueba API',devoluciones:a.pagos.map(x=>({fk_idpago:x.idpago,importe:x.importe}))};
  await Promise.all([post(`/api/pedidos/${p.idpedido}/anular`,cancellation),post(`/api/pedidos/${p.idpedido}/anular`,cancellation)]);
  const after=await call(`/api/pedidos/cuentas/${p.fk_idcuenta}`);ok(after.devoluciones.length===3&&Number(after.cobrado)===0,'Anulación de pedido pagado mantiene originales y no duplica devoluciones');
+ const auditAnulado=(await pool.query("SELECT antes,despues,motivo,ip FROM auditoria WHERE accion='PEDIDO_ANULADO' AND id_entidad=$1",[p.idpedido])).rows;
+ ok(auditAnulado.length===1&&auditAnulado[0].motivo==='Prueba API'&&auditAnulado[0].despues.devuelto===a.pagos.reduce((sum,x)=>sum+Number(x.importe),0)&&/127\.0\.0\.1/.test(auditAnulado[0].ip),'La anulación concurrente deja un solo registro de auditoría, con devolución e IP');
  const cancelledKpi=await call(kpiPath);
  ok(cancelledKpi.resumen.pedidos===0&&cancelledKpi.resumen.monto===0&&cancelledKpi.pagos.reduce((sum,item)=>sum+item.monto,0)===0,'KPI excluye pedido anulado y descuenta devoluciones');
  const stock=(await pool.query('SELECT stock_actual FROM producto_menu WHERE idproducto_menu=$1',[drink.idproducto_menu])).rows[0].stock_actual;

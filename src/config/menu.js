@@ -15,7 +15,8 @@ export const menuSections = [
     id: 'usuarios', label: 'Usuarios', icon: '◎', items: [
       { id: 'usuarios', label: 'Usuarios', path: '/usuarios' },
       { id: 'roles', label: 'Roles', path: '/roles' },
-      { id: 'permisos', label: 'Permisos', path: '/permisos' }
+      { id: 'permisos', label: 'Permisos', path: '/permisos' },
+      { id: 'auditoria', label: 'Auditoría', path: '/auditoria' }
     ]
   },
   {
@@ -95,7 +96,7 @@ export const implementedForms = new Set([
   'unidades-menu', 'ubicaciones-mesa', 'mesas-config', 'ingredientes',
   'unidades-medida', 'conversiones-unidad', 'caja', 'formas-pago', 'gastos', 'kpi-gastos', 'gasto-tipos',
   'clientes', 'zonas', 'usuarios', 'roles', 'permisos', 'compras', 'kpi-compras', 'proveedores', 'personal', 'vales',
-  'facturas', 'datos-restaurante', 'configuracion-comanda'
+  'facturas', 'datos-restaurante', 'configuracion-comanda', 'auditoria'
 ]);
 
 export const permissionCode = (formId) => `FORM_${formId.toUpperCase().replaceAll('-', '_')}`;

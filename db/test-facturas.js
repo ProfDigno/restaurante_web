@@ -158,6 +158,8 @@ try {
   await call(`/api/facturas/${creada.idfactura}/cancelar`, { method: 'POST', body: { motivo: 'no' }, status: 400 });
   const cancelada = await call(`/api/facturas/${creada.idfactura}/cancelar`, { method: 'POST', body: { motivo: 'Pago no recibido' } });
   ok(cancelada.estado === 'cancelado' && cancelada.motivo_cancelado === 'Pago no recibido', 'Cancela una factura aprobada con motivo');
+  const auditFactura = (await pool.query("SELECT antes,despues,motivo FROM auditoria WHERE accion='FACTURA_CANCELADA' AND id_entidad=$1", [creada.idfactura])).rows;
+  ok(auditFactura.length === 1 && auditFactura[0].motivo === 'Pago no recibido' && auditFactura[0].antes.estado === 'aprobado' && auditFactura[0].despues.estado === 'cancelado', 'La cancelación de la factura queda en la auditoría');
   const nuevaDelMismo = await call(`/api/facturas/desde-pedido/${pedido.idpedido}`);
   ok(nuevaDelMismo.existente === false, 'Tras cancelar, el pedido puede volver a facturarse');
 

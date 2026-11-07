@@ -3,6 +3,7 @@ import { pool } from '../config/database.js';
 import { operation, integer, id, fail, textRequired } from '../services/pedidos.js';
 import { renderCompraTicket } from '../services/compra-ticket.js';
 import { restaurantInfo, sendPdf } from '../services/ticket-pdf.js';
+import { auditar } from '../services/auditoria.js';
 
 const router=Router();
 const route=fn=>async(req,res,next)=>{try{res.json(await fn(req));}catch(error){if(['P0001','23514','23503','23505'].includes(error.code))error.status=error.code==='23505'?409:400;next(error);}};
@@ -123,6 +124,10 @@ router.post('/:id/anular',route(req=>operation(req,async c=>{
   await c.query('SELECT anular_compra($1,$2,$3)',[compraId,req.user.login,motivo]);
   if(current.estado_pago==='pendiente')await c.query("UPDATE compra SET estado_pago='anulada' WHERE idcompra=$1",[compraId]);
   await c.query("UPDATE compra_pago SET estado='anulado',fecha_anulado=CURRENT_TIMESTAMP,anulado_por=$2 WHERE fk_idcompra=$1 AND estado='aprobado'",[compraId,req.user.login]);
-  return {compra:await full(c,compraId)};
+  const anulada=await full(c,compraId);
+  await auditar(c,req.user,{accion:'COMPRA_ANULADA',entidad:'compra',id:compraId,motivo,
+    antes:{estado:current.estado,estado_pago:current.estado_pago,total:Number(anulada.total),pagado:Number(anulada.importe_pagado),proveedor:anulada.proveedor_nombre},
+    despues:{estado:anulada.estado,estado_pago:anulada.estado_pago}});
+  return {compra:anulada};
 })));
 export default router;

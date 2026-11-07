@@ -3,6 +3,7 @@ import { pool } from '../config/database.js';
 import { operation, integer, id, fail, textRequired } from '../services/pedidos.js';
 import { renderValeTicket } from '../services/vale-ticket.js';
 import { restaurantInfo, sendPdf } from '../services/ticket-pdf.js';
+import { auditar } from '../services/auditoria.js';
 
 // RR.HH. · Vales: adelantos al personal. Se registran pagados y el trigger trg_vale_caja genera el egreso
 // en la caja abierta; al anular un vale pagado se registra la reversión (ingreso compensatorio).
@@ -59,12 +60,15 @@ router.post('/',route(req=>operation(req,async c=>{
 router.post('/:id/anular',route(req=>operation(req,async c=>{
   const valeId=id(req.params.id),motivo=textRequired(req.body?.motivo,'El motivo');
   if(motivo.length>500)fail('El motivo admite hasta 500 caracteres');
-  const vale=(await c.query('SELECT estado FROM vale WHERE idvale=$1 FOR UPDATE',[valeId])).rows[0];
+  const vale=(await c.query('SELECT estado,monto_vale FROM vale WHERE idvale=$1 FOR UPDATE',[valeId])).rows[0];
   if(!vale)fail('Vale no encontrado',404);
   if(vale.estado==='anulado')fail('El vale ya fue anulado',409);
   if(vale.estado==='pagado'&&!(await c.query("SELECT 1 FROM caja_gral WHERE estado='abierta' FOR UPDATE")).rowCount)fail('Abrí una caja antes de anular el vale');
   await c.query('SELECT anular_vale($1,$2,$3)',[valeId,req.user.login,motivo]);
-  return {item:(await c.query(`${select} WHERE v.idvale=$1`,[valeId])).rows[0]};
+  const item=(await c.query(`${select} WHERE v.idvale=$1`,[valeId])).rows[0];
+  await auditar(c,req.user,{accion:'VALE_ANULADO',entidad:'vale',id:valeId,motivo,
+    antes:{estado:vale.estado,monto:Number(vale.monto_vale),personal:item.personal_nombre},despues:{estado:item.estado}});
+  return {item};
 })));
 
 router.get('/:id/ticket.pdf',async(req,res,next)=>{

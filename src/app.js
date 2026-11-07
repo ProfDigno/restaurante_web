@@ -35,6 +35,7 @@ import facturaRoutes from './routes/factura.routes.js';
 import datosRestauranteRoutes from './routes/datos-restaurante.routes.js';
 import comandaConfigRoutes from './routes/comanda-config.routes.js';
 import securityRoutes from './routes/security.routes.js';
+import auditoriaRoutes from './routes/auditoria.routes.js';
 import { requireAuth, requirePermission } from './middleware/auth.js';
 import { notFound, errorHandler } from './middleware/error.js';
 import { sameOriginWrites } from './middleware/security.js';
@@ -89,6 +90,7 @@ app.use('/api/compras', requireAuth, requirePermission('compras'), compraRoutes)
 app.use('/api/facturas', requireAuth, requirePermission('facturas'), facturaRoutes);
 app.use('/api/datos-restaurante', requireAuth, requirePermission('datos-restaurante'), datosRestauranteRoutes);
 app.use('/api/comanda-config', requireAuth, requirePermission('configuracion-comanda'), comandaConfigRoutes);
+app.use('/api/auditoria', requireAuth, requirePermission('auditoria'), auditoriaRoutes);
 app.use('/api', securityRoutes);
 
 // En desarrollo, Vite se monta como middleware desde server.js para compartir

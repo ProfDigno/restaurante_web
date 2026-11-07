@@ -3,6 +3,7 @@ import { pool } from '../config/database.js';
 import { operation, integer, id, fail, textRequired } from '../services/pedidos.js';
 import { renderGastoTicket } from '../services/gasto-ticket.js';
 import { restaurantInfo, sendPdf } from '../services/ticket-pdf.js';
+import { auditar } from '../services/auditoria.js';
 
 const router=Router();
 const route=fn=>async(req,res,next)=>{try{res.json(await fn(req));}catch(error){if(['P0001','23514','23503','23505'].includes(error.code))error.status=error.code==='23505'?409:400;next(error);}};
@@ -44,11 +45,13 @@ router.post('/',route(req=>operation(req,async c=>{
 router.post('/:id/anular',route(req=>operation(req,async c=>{
   const gastoId=id(req.params.id),motivo=textRequired(req.body?.motivo,'El motivo');
   if(motivo.length>500)fail('El motivo admite hasta 500 caracteres');
-  const gasto=(await c.query('SELECT estado FROM gasto WHERE idgasto=$1 FOR UPDATE',[gastoId])).rows[0];
+  const gasto=(await c.query('SELECT estado,total_gasto,descripcion FROM gasto WHERE idgasto=$1 FOR UPDATE',[gastoId])).rows[0];
   if(!gasto)fail('Gasto no encontrado',404);
   if(gasto.estado!=='pagado')fail('El gasto ya fue anulado',409);
   if(!(await c.query("SELECT 1 FROM caja_gral WHERE estado='abierta' FOR UPDATE")).rowCount)fail('Abrí una caja antes de anular el gasto');
   await c.query("UPDATE gasto SET estado='anulado',fecha_anulado=CURRENT_TIMESTAMP,anulado_por=$1,motivo_anulado=$2 WHERE idgasto=$3",[req.user.login,motivo,gastoId]);
+  await auditar(c,req.user,{accion:'GASTO_ANULADO',entidad:'gasto',id:gastoId,motivo,
+    antes:{estado:gasto.estado,total:Number(gasto.total_gasto),descripcion:gasto.descripcion},despues:{estado:'anulado'}});
   return {item:(await c.query(`${select} WHERE g.idgasto=$1`,[gastoId])).rows[0]};
 })));
 router.get('/:id/ticket.pdf',async(req,res,next)=>{

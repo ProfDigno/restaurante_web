@@ -1,5 +1,6 @@
 import { pool } from '../config/database.js';
 import { avisarCambio } from './eventos.js';
+import { auditar } from './auditoria.js';
 
 export function fail(message, status = 400) { const error = new Error(message); error.status = status; throw error; }
 export function integer(value, name, min = 0) {
@@ -102,7 +103,7 @@ export async function saveOrder(c, body, user, orderId = null) {
   const advanceAmount = integer(advance?.importe ?? 0, 'Pago anticipado');
   let courierId = body.fk_identregador_delivery == null || body.fk_identregador_delivery === '' ? null : id(body.fk_identregador_delivery);
   if (discount) textRequired(body.motivo_descuento, 'El motivo del descuento');
-  let p, a;
+  let p, a, previousDiscount = { monto_descuento: 0, motivo_descuento: null };
   if (orderId) {
     p = await order(c, orderId); a = await account(c, p.fk_idcuenta, true);
     if (body.fk_identregador_delivery === undefined) courierId = p.fk_identregador_delivery;
@@ -111,6 +112,7 @@ export async function saveOrder(c, body, user, orderId = null) {
     if (p.version_web !== id(body.version_web)) fail('El pedido cambió. Volvé a cargarlo antes de guardar', 409);
     if (body.tipo_entrega !== p.tipo_entrega || Number(body.fk_idmesa || 0) !== Number(p.fk_idmesa || 0) || Number(body.fk_idcliente) !== p.fk_idcliente) fail('Tipo, mesa y cliente quedan fijos después de guardar');
     if (p.tipo_entrega !== 'DELIVERY' && courierId !== null) fail('Solo los pedidos Delivery admiten entregador');
+    previousDiscount = { monto_descuento: Number(p.monto_descuento), motivo_descuento: p.motivo_descuento };
     // Remove discount temporarily so line-by-line triggers never see an intermediate negative total.
     await c.query('UPDATE pedido SET monto_descuento=0 WHERE idpedido=$1', [p.idpedido]);
   } else {
@@ -147,6 +149,8 @@ export async function saveOrder(c, body, user, orderId = null) {
       if (Number(line.fk_idproducto_menu) !== old.fk_idproducto_menu) fail('No se puede reemplazar un producto histórico');
       if (quantity !== Number(old.cantidad)) {
         if (quantity > Number(old.cantidad)) await sellable(c,old.fk_idproducto_menu);
+        else await auditar(c, user, { accion: 'PEDIDO_LINEA_REDUCIDA', entidad: 'pedido', id: p.idpedido,
+          antes: { producto: old.nombre_mostrado, cantidad: Number(old.cantidad), precio_venta: Number(old.precio_venta) }, despues: { cantidad: quantity } });
         await c.query('UPDATE detalle_pedido SET cantidad=$1 WHERE iddetalle_pedido=$2',[quantity,old.iddetalle_pedido]);
       }
       await syncLineIngredients(c,old.iddetalle_pedido,old.fk_idproducto_menu,line.ingredientes,user);
@@ -157,12 +161,20 @@ export async function saveOrder(c, body, user, orderId = null) {
       const inserted = await c.query('INSERT INTO detalle_pedido(fk_idpedido,fk_idproducto_menu,cantidad,precio_venta,precio_compra,creado_por) VALUES($1,$2,$3,$4,$5,$6) RETURNING iddetalle_pedido', [p.idpedido,product.idproducto_menu,quantity,product.precio_venta,product.precio_compra,user.login]);
       if (keepQuotedPrice && Number(salePrice) !== Number(product.precio_venta)) {
         await c.query('UPDATE detalle_pedido SET precio_venta=$1 WHERE iddetalle_pedido=$2', [salePrice,inserted.rows[0].iddetalle_pedido]);
+        await auditar(c, user, { accion: 'PEDIDO_PRECIO_MANUAL', entidad: 'pedido', id: p.idpedido,
+          antes: { producto: product.nombre, precio_lista: Number(product.precio_venta) }, despues: { precio_venta: Number(salePrice), cantidad: quantity } });
       }
       await syncLineIngredients(c,inserted.rows[0].iddetalle_pedido,product.idproducto_menu,line.ingredientes,user);
     }
   }
   for (const old of p.detalles || []) if (!kept.has(old.iddetalle_pedido)) {
     await c.query("UPDATE detalle_pedido SET estado='cancelado',fecha_anulado=CURRENT_TIMESTAMP,anulado_por=$1,motivo_anulado='Eliminado desde el formulario' WHERE iddetalle_pedido=$2",[user.login,old.iddetalle_pedido]);
+    await auditar(c, user, { accion: 'PEDIDO_LINEA_ANULADA', entidad: 'pedido', id: p.idpedido,
+      antes: { producto: old.nombre_mostrado, cantidad: Number(old.cantidad), precio_venta: Number(old.precio_venta) } });
+  }
+  const newDiscount = { monto_descuento: discount, motivo_descuento: discount ? body.motivo_descuento.trim() : null };
+  if (newDiscount.monto_descuento !== previousDiscount.monto_descuento || newDiscount.motivo_descuento !== previousDiscount.motivo_descuento) {
+    await auditar(c, user, { accion: 'PEDIDO_DESCUENTO', entidad: 'pedido', id: p.idpedido, antes: previousDiscount, despues: newDiscount, motivo: newDiscount.motivo_descuento });
   }
   await c.query('UPDATE pedido SET monto_descuento=$1,motivo_descuento=$2,observacion=$3,fk_identregador_delivery=$4,version_web=version_web+1 WHERE idpedido=$5', [discount,discount ? body.motivo_descuento.trim() : null,body.observacion || null,courierId,p.idpedido]);
   if (!orderId) {
@@ -251,6 +263,10 @@ export async function cancelOrder(c,orderId,body,user) {
   }
   if (amount !== preview.devolver) fail('El importe a devolver cambió. Revisá la distribución',409);
   await c.query('SELECT anular_pedido($1,$2,$3,$4)',[preview.pedido.idpedido,user.sub,user.login,reason]);
+  await auditar(c, user, { accion: 'PEDIDO_ANULADO', entidad: 'pedido', id: preview.pedido.idpedido,
+    antes: { estado: preview.pedido.estado, monto_total: Number(preview.pedido.monto_total), tipo_entrega: preview.pedido.tipo_entrega, ...(preview.pedido.numero_mesa ? { mesa: preview.pedido.numero_mesa } : {}),
+      productos: preview.pedido.detalles.map(d => `${Number(d.cantidad)} × ${d.nombre_mostrado}`) },
+    despues: { estado: 'cancelado', devuelto: amount }, motivo: reason });
   for (const r of refunds) await c.query('INSERT INTO devolucion_pago(fk_idpedido,fk_idpago,importe,motivo,creado_por) VALUES($1,$2,$3,$4,$5)',[preview.pedido.idpedido,r.fk_idpago,r.importe,reason,user.login]);
   return { pedido:await order(c,orderId),cuenta:await account(c,preview.cuenta.idcuenta) };
 }

@@ -3,6 +3,7 @@ import { pool } from '../config/database.js';
 import { requireAuth, requireCurrentForm } from '../middleware/auth.js';
 import { operation, integer, id, fail } from '../services/pedidos.js';
 import { renderCajaTicket } from '../services/caja-ticket.js';
+import { auditar } from '../services/auditoria.js';
 
 const router = Router();
 const validDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value || '') && !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
@@ -150,6 +151,10 @@ router.post('/:id/cerrar', formAccess, route((req) => operation(req, async (clie
     if (completos[key] === undefined) completos[key] = Math.max(0, Number(row.monto_esperado));
   }
   await client.query('SELECT cerrar_caja_gral($1,$2::jsonb,$3)', [cajaId, JSON.stringify(completos), req.user.login]);
+  const diferencias = (await arqueoRows(client, cajaId)).filter(row => Number(row.diferencia || 0) !== 0);
+  if (diferencias.length) await auditar(client, req.user, { accion: 'CAJA_CIERRE_DIFERENCIA', entidad: 'caja', id: cajaId,
+    antes: Object.fromEntries(diferencias.map(row => [row.forma_pago, { esperado: Number(row.monto_esperado) }])),
+    despues: Object.fromEntries(diferencias.map(row => [row.forma_pago, { contado: Number(row.monto_contado), diferencia: Number(row.diferencia) }])) });
   return { idcaja_gral: cajaId, estado: 'cerrada' };
 })));
 

@@ -1,6 +1,7 @@
 import { pool } from '../config/database.js';
 import { fail, id, order, textRequired } from './pedidos.js';
 import * as sisfe from './sisfe.js';
+import { auditar } from './auditoria.js';
 
 const UNIDAD_MEDIDA = 77;
 const CANCELACION_MAX_HORAS = 48;
@@ -284,7 +285,16 @@ export async function cancelarFactura(facturaId, motivo, user) {
     const horas = (Date.now() - new Date(factura.fecha_emision).getTime()) / 3600000;
     if (horas > CANCELACION_MAX_HORAS) fail(`Las facturas solo se pueden cancelar dentro de las ${CANCELACION_MAX_HORAS} horas de emitidas`, 409);
     await sisfe.cancelarDocumento(factura.cdc, reason);
-    await pool.query("UPDATE factura SET estado='cancelado',fecha_cancelado=CURRENT_TIMESTAMP,cancelado_por=$2,motivo_cancelado=$3 WHERE idfactura=$1", [facturaId, user.login, reason]);
+    // SISFE ya la canceló: el registro de auditoría va en la misma transacción que el cambio de estado local.
+    const client = await pool.connect();
+    try {
+      await client.query('BEGIN');
+      await client.query("UPDATE factura SET estado='cancelado',fecha_cancelado=CURRENT_TIMESTAMP,cancelado_por=$2,motivo_cancelado=$3 WHERE idfactura=$1", [facturaId, user.login, reason]);
+      await auditar(client, user, { accion: 'FACTURA_CANCELADA', entidad: 'factura', id: facturaId, motivo: reason,
+        antes: { estado: factura.estado, numero: `${factura.establecimiento}-${factura.punto}-${String(factura.numero).padStart(7, '0')}`, total: Number(factura.total), pedido: factura.fk_idpedido, cdc: factura.cdc },
+        despues: { estado: 'cancelado' } });
+      await client.query('COMMIT');
+    } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
     return obtenerFactura(pool, facturaId);
   });
 }

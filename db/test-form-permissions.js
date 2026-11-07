@@ -34,11 +34,11 @@ try {
     return data;
   }
   const admin = await call('/api/auth/me');
-  assert.equal(admin.user.permisos.filter(code => code.startsWith('FORM_')).length, 33);
+  assert.equal(admin.user.permisos.filter(code => code.startsWith('FORM_')).length, 34);
   assert.deepEqual(admin.menu.map(section => section.label), ['Operación', 'Usuarios', 'RR.HH.', 'Cliente', 'Productos', 'Mesas', 'Caja y finanzas', 'Gasto', 'Compra', 'Factura', 'Configuración del sistema']);
   assert.deepEqual(admin.menu.map(section => section.items.map(item => item.id)), [
     ['mesas', 'solo-mesas', 'historial-mesas', 'pedidos', 'solo-pedido', 'comanda', 'kpi-pedidos'],
-    ['usuarios', 'roles', 'permisos'],
+    ['usuarios', 'roles', 'permisos', 'auditoria'],
     ['personal', 'vales'],
     ['clientes', 'zonas', 'delivery'],
     ['categorias', 'menu', 'grupos', 'unidades-menu', 'ingredientes', 'unidades-medida', 'conversiones-unidad'],
@@ -99,6 +99,9 @@ try {
   assert.equal(Number((await call('/api/cajas')).abierta.total_egresos),1000);
   await call(`/api/gastos/${expense.idgasto}/anular`, { method: 'POST', body: { motivo: 'Corrección', clave: randomUUID() } });
   await call(`/api/gastos/${expense.idgasto}/anular`, { method: 'POST', body: { motivo: 'Duplicado', clave: randomUUID() }, status: 409 });
+  const auditGasto = (await pool.query("SELECT antes,motivo FROM auditoria WHERE accion='GASTO_ANULADO' AND id_entidad=$1", [expense.idgasto])).rows;
+  assert.equal(auditGasto.length, 1, 'El segundo intento rechazado no deja auditoría');
+  assert.equal(auditGasto[0].motivo, 'Corrección'); assert.equal(auditGasto[0].antes.total, 1000);
   const reversed = await pool.query('SELECT tipo_movimiento FROM caja_item WHERE fk_idgasto=$1 AND es_reversion',[expense.idgasto]);
   assert.equal(reversed.rowCount,1); assert.equal(reversed.rows[0].tipo_movimiento,'ingreso');
   const cancelledKpi=await call('/api/kpi-gastos?inicio=2026-10-17&fin=2026-10-17');
@@ -131,6 +134,8 @@ try {
   assert.equal((await pool.query('SELECT count(*)::int AS n FROM caja_item WHERE fk_idcompra_pago IN (SELECT idcompra_pago FROM compra_pago WHERE fk_idcompra=$1) AND NOT es_reversion',[draft.idcompra])).rows[0].n,2);
   const cancelled=(await call(`/api/compras/${draft.idcompra}/anular`,{method:'POST',body:{motivo:'Prueba de anulación',clave:randomUUID()}})).compra;
   assert.equal(cancelled.estado,'cancelada');
+  const auditCompra=(await pool.query("SELECT antes,despues,motivo FROM auditoria WHERE accion='COMPRA_ANULADA' AND id_entidad=$1",[draft.idcompra])).rows;
+  assert.equal(auditCompra.length,1);assert.equal(auditCompra[0].motivo,'Prueba de anulación');assert.equal(auditCompra[0].despues.estado,'cancelada');
   assert.equal((await pool.query('SELECT count(*)::int AS n FROM caja_item WHERE fk_idcompra_pago IN (SELECT idcompra_pago FROM compra_pago WHERE fk_idcompra=$1) AND es_reversion',[draft.idcompra])).rows[0].n,2);
   assert.equal(Number((await pool.query('SELECT stock_actual FROM producto_menu WHERE idproducto_menu=$1',[product.idproducto_menu])).rows[0].stock_actual),stockBefore);
   const initialPaymentBody={...purchaseBody,numero_nota:'T-INICIAL',confirmar:true,anticipo:500,fk_idforma_pago:cashForm.idforma_pago,clave:randomUUID()};
@@ -205,6 +210,7 @@ try {
   const boxDetail=await call(`/api/cajas/${openBox.idcaja_gral}`);
   const counts=Object.fromEntries(boxDetail.arqueos.map(row=>[row.fk_idforma_pago,Number(row.monto_esperado)]));
   await call(`/api/cajas/${openBox.idcaja_gral}/cerrar`, { method:'POST',body:{conteos:counts,clave:randomUUID()} });
+  assert.equal((await pool.query("SELECT count(*)::int AS n FROM auditoria WHERE accion='CAJA_CIERRE_DIFERENCIA'")).rows[0].n,0,'Un cierre sin diferencia no se audita');
   await call('/api/gastos', { method:'POST',body:{fecha_gasto:'2026-10-17',fk_idgasto_tipo:1,fk_idforma_pago:cashForm.idforma_pago,descripcion:'Sin caja',total_gasto:1000,clave:randomUUID()},status:400 });
   await call(`/api/compras/${creditDraft.idcompra}/pagos`,{method:'POST',body:{importe:100,fk_idforma_pago:cashForm.idforma_pago,clave:randomUUID()},status:400});
   const closedDraft=(await call('/api/compras',{method:'POST',body:{...purchaseBody,condicion:'CONTADO',numero_nota:'T-4',clave:randomUUID()}})).compra;

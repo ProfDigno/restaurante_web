@@ -1,0 +1,12 @@
+.audit-table td { vertical-align: top; }
+.audit-table th:nth-child(1), .audit-table td:nth-child(1) { min-width: 110px; }
+.audit-table th:nth-child(5), .audit-table td:nth-child(5) { min-width: 280px; }
+.audit-table th:nth-child(6), .audit-table td:nth-child(6) { min-width: 160px; }
+.audit-table td small { display: block; color: #6b7a75; font-size: 11px; }
+.audit-changes { margin: 0; padding: 0; list-style: none; display: grid; gap: 3px; font-size: 12.5px; line-height: 1.35; }
+.audit-changes span { color: #53655f; }
+.audit-changes del { color: #a14b3f; }
+.audit-changes strong { color: var(--ink); }
+.audit-id { width: 90px; }
+.audit-export { display: inline-flex; align-items: center; gap: 6px; text-decoration: none; }
+.audit-export svg { width: 16px; height: 16px; }

@@ -34,7 +34,8 @@ export async function requireAuth(req, res, next) {
       WHERE u.idusuario=$1 AND u.activo
       GROUP BY u.idusuario,r.rol`, [session.sub]);
     if (!rows.length) return res.status(401).json({ error: 'Usuario o rol inactivo' });
-    req.user = rows[0];
+    // La IP queda en el usuario para que la auditoría la registre (con TRUST_PROXY, la del cliente real).
+    req.user = { ...rows[0], ip: req.ip };
     next();
   } catch (error) {
     if (error.name === 'JsonWebTokenError' || error.name === 'TokenExpiredError') return res.status(401).json({ error: 'Sesión expirada' });

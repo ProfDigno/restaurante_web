@@ -27,11 +27,13 @@
     "db:migrate-ubicacion-mesa": "node db/migrate-ubicacion-mesa.js",
     "db:migrate-kpi-compras": "node db/migrate-kpi-compras.js",
     "db:migrate-rrhh": "node db/migrate-rrhh.js",
+    "db:migrate-auditoria": "node db/migrate-auditoria.js",
     "test:pedidos": "node db/test-pedidos-web.js && node db/test-pedidos-http.js",
     "test:form-permissions": "node db/test-form-permissions.js",
     "test:comanda": "node db/test-comanda.js",
     "test:facturas": "node db/test-facturas.js",
-    "test:rrhh": "node db/test-rrhh.js"
+    "test:rrhh": "node db/test-rrhh.js",
+    "test:auditoria": "node db/test-auditoria.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",

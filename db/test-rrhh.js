@@ -92,6 +92,8 @@ try {
   await post(`/api/vales/${v1.idvale}/anular`, { motivo: '' }, { status: 400 });
   const anulado = (await post(`/api/vales/${v1.idvale}/anular`, { motivo: 'Cargado por error' })).item;
   assert.equal(anulado.estado, 'anulado');
+  const auditVale = (await pool.query("SELECT antes,despues,motivo FROM auditoria WHERE accion='VALE_ANULADO' AND id_entidad=$1", [v1.idvale])).rows;
+  assert.equal(auditVale.length, 1); assert.equal(auditVale[0].motivo, 'Cargado por error'); assert.equal(auditVale[0].antes.estado, 'pagado');
   const movimientos = (await pool.query('SELECT tipo_movimiento,es_reversion FROM caja_item WHERE fk_idvale=$1 ORDER BY idcaja_item', [v1.idvale])).rows;
   assert.deepEqual(movimientos.map(r => [r.tipo_movimiento, r.es_reversion]), [['egreso', false], ['ingreso', true]]);
   detalle = await call(`/api/cajas/${caja.idcaja_gral}`);

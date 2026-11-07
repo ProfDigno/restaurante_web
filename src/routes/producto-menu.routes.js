@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { pool } from '../config/database.js';
 import { requireAuth, requireCurrentForm } from '../middleware/auth.js';
+import { auditar, cambios, numeros } from '../services/auditoria.js';
 
 const router = Router();
 router.use(requireAuth, requireCurrentForm);
@@ -142,8 +143,13 @@ router.put('/:id', async (req, res, next) => {
     const ingredients = hasIngredients ? validateIngredients(req.body.ingredientes) : null;
     if (typeof ingredients === 'string') return res.status(400).json({ error: ingredients });
     await client.query('BEGIN');
+    const before = (await client.query('SELECT nombre, precio_venta, precio_compra, stock_actual FROM producto_menu WHERE idproducto_menu = $1 FOR UPDATE', [id])).rows[0];
     const { rows } = await client.query(`UPDATE producto_menu SET fk_idcategoria_menu = $1, fk_idunidad_menu = $2, fk_idgrupo_menu = $3, nombre = $4, descripcion = $5, precio_venta = $6, precio_compra = $7, stock_actual = $8, stock_minimo = $9, activo = $10, es_descontar_stock = $11, es_cocina = $12, es_vender = $13, es_comprar = $14 WHERE idproducto_menu = $15 RETURNING idproducto_menu`, [values.fk_idcategoria_menu, values.fk_idunidad_menu, values.fk_idgrupo_menu, values.nombre, values.descripcion, values.precio_venta, values.precio_compra, values.stock_actual, values.stock_minimo, values.activo, values.es_descontar_stock, values.es_cocina, values.es_vender, values.es_comprar, id]);
     if (!rows.length) { await client.query('ROLLBACK'); return res.status(404).json({ error: 'Producto no encontrado' }); }
+    // Precio y stock cambiados a mano quedan en la auditoría.
+    const diff = cambios(before, values, ['precio_venta', 'precio_compra', 'stock_actual']);
+    if (diff) await auditar(client, req.user, { accion: 'PRODUCTO_MODIFICADO', entidad: 'producto', id,
+      antes: { producto: before.nombre, ...numeros(diff.antes) }, despues: numeros(diff.despues) });
     if (hasIngredients) {
       for (const ingredient of ingredients) {
         const found = await client.query(`SELECT 1 FROM ingrediente i WHERE i.idingrediente = $1 AND (i.activo OR EXISTS (SELECT 1 FROM producto_menu_ingrediente pi WHERE pi.fk_idproducto_menu = $2 AND pi.fk_idingrediente = i.idingrediente))`, [ingredient.idingrediente, id]);

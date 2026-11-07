@@ -3,6 +3,7 @@ import bcrypt from 'bcryptjs';
 import { pool } from '../config/database.js';
 import { formDefinitions, permissionCode } from '../config/menu.js';
 import { requireAuth, requirePermission } from '../middleware/auth.js';
+import { auditar, cambios } from '../services/auditoria.js';
 
 const router = Router();
 const knownCodes = new Set(formDefinitions.map(form => form.code));
@@ -79,16 +80,24 @@ async function saveUser(req, editing) {
   return transaction(async client => {
     if (!(await client.query('SELECT 1 FROM usuario_rol WHERE idusuario_rol=$1 AND activo', [roleId])).rowCount) fail('Seleccioná un rol activo');
     let userId;
+    const userFields = ['login', 'nombre', 'rol', 'activo'];
+    const userAudit = async idValue => (await client.query('SELECT u.login,u.nombre,r.rol,u.activo FROM usuario u JOIN usuario_rol r ON r.idusuario_rol=u.fk_idusuario_rol WHERE u.idusuario=$1', [idValue])).rows[0];
     if (editing) {
       userId = id(req.params.id);
+      const before = await userAudit(userId);
       const result = await client.query(`UPDATE usuario SET login=$1,nombre=$2,fk_idusuario_rol=$3,activo=$4
         WHERE idusuario=$5 RETURNING idusuario`, [login, nombre, roleId, body.activo !== false, userId]);
       if (!result.rowCount) fail('Usuario no encontrado', 404);
       if (password) await client.query('UPDATE usuario SET password_hash=$1 WHERE idusuario=$2', [await bcrypt.hash(password, 12), userId]);
+      // Nunca se guarda la contraseña ni su hash: solo que fue cambiada.
+      const diff = cambios(before, await userAudit(userId), userFields);
+      if (diff || password) await auditar(client, req.user, { accion: 'USUARIO_MODIFICADO', entidad: 'usuario', id: userId,
+        antes: diff?.antes || {}, despues: { ...(diff?.despues || {}), ...(password ? { contrasena: 'cambiada' } : {}) } });
     } else {
       const result = await client.query(`INSERT INTO usuario(login,nombre,password_hash,fk_idusuario_rol,activo,creado_por)
         VALUES($1,$2,$3,$4,$5,$6) RETURNING idusuario`, [login, nombre, await bcrypt.hash(password, 12), roleId, body.activo !== false, req.user.login]);
       userId = result.rows[0].idusuario;
+      await auditar(client, req.user, { accion: 'USUARIO_CREADO', entidad: 'usuario', id: userId, despues: await userAudit(userId) });
     }
     return { item: (await client.query(`${userSelect} WHERE u.idusuario=$1`, [userId])).rows[0] };
   });
@@ -113,9 +122,15 @@ async function saveRole(req, editing) {
   if (!name || name.length > 80) fail('Ingresá un nombre de rol válido');
   if (!Array.isArray(codes) || new Set(codes).size !== codes.length || codes.some(code => !knownCodes.has(code))) fail('La lista de permisos es inválida');
   return transaction(async client => {
-    let roleId;
+    let roleId, before = null;
+    const roleAudit = async idValue => (await client.query(`SELECT r.rol,r.activo,
+        COALESCE(array_agg(e.codigo_evento ORDER BY e.codigo_evento) FILTER (WHERE i.activo AND e.codigo_evento LIKE 'FORM_%'), '{}') AS permisos
+      FROM usuario_rol r LEFT JOIN usuario_rol_item i ON i.fk_idusuario_rol=r.idusuario_rol
+      LEFT JOIN usuario_rol_evento e ON e.idusuario_rol_evento=i.fk_idusuario_rol_evento
+      WHERE r.idusuario_rol=$1 GROUP BY r.idusuario_rol`, [idValue])).rows[0];
     if (editing) {
       roleId = id(req.params.id);
+      before = await roleAudit(roleId);
       const updated = await client.query('UPDATE usuario_rol SET rol=$1,activo=$2 WHERE idusuario_rol=$3 RETURNING idusuario_rol', [name, body.activo !== false, roleId]);
       if (!updated.rowCount) fail('Rol no encontrado', 404);
     } else {
@@ -127,6 +142,16 @@ async function saveRole(req, editing) {
         SELECT $1,e.idusuario_rol_evento,$3 FROM usuario_rol_evento e WHERE e.codigo_evento=$2 AND e.activo
         ON CONFLICT(fk_idusuario_rol,fk_idusuario_rol_evento) DO UPDATE SET activo=true`, [roleId, code, req.user.login]);
       if (!inserted.rowCount) fail(`El permiso ${code} no está activo`);
+    }
+    const after = await roleAudit(roleId);
+    if (!editing) await auditar(client, req.user, { accion: 'ROL_CREADO', entidad: 'rol', id: roleId, despues: after });
+    else {
+      const quitados = before.permisos.filter(code => !after.permisos.includes(code));
+      const agregados = after.permisos.filter(code => !before.permisos.includes(code));
+      const diff = cambios(before, after, ['rol', 'activo']);
+      if (diff || quitados.length || agregados.length) await auditar(client, req.user, { accion: 'ROL_MODIFICADO', entidad: 'rol', id: roleId,
+        antes: { ...(diff?.antes || {}), ...(quitados.length ? { permisos_quitados: quitados } : {}) },
+        despues: { ...(diff?.despues || {}), ...(agregados.length ? { permisos_agregados: agregados } : {}) } });
     }
     return { item: (await client.query(`${roleSelect} WHERE r.idusuario_rol=$1 GROUP BY r.idusuario_rol`, [roleId])).rows[0] };
   });
@@ -153,9 +178,13 @@ router.put('/permisos/:id', requirePermission('permisos'), route(async req => {
   if (!nombre || nombre.length > 150 || descripcion.length > 500) fail('Ingresá un nombre y descripción válidos');
   return transaction(async client => {
     const permissionId = id(req.params.id);
+    const before = (await client.query('SELECT codigo_evento,nombre,descripcion,activo FROM usuario_rol_evento WHERE idusuario_rol_evento=$1', [permissionId])).rows[0];
     const updated = await client.query(`UPDATE usuario_rol_evento SET nombre=$1,descripcion=$2,activo=$3
       WHERE idusuario_rol_evento=$4 AND codigo_evento=ANY($5::text[]) RETURNING idusuario_rol_evento`, [nombre, descripcion, body.activo !== false, permissionId, [...knownCodes]]);
     if (!updated.rowCount) fail('Permiso no encontrado', 404);
+    const diff = cambios(before, { nombre, descripcion, activo: body.activo !== false }, ['nombre', 'descripcion', 'activo']);
+    if (diff) await auditar(client, req.user, { accion: 'PERMISO_MODIFICADO', entidad: 'permiso', id: permissionId,
+      antes: { codigo: before.codigo_evento, ...diff.antes }, despues: diff.despues });
     return { item: (await client.query(`${permissionSelect} WHERE e.idusuario_rol_evento=$1 GROUP BY e.idusuario_rol_evento`, [permissionId])).rows[0] };
   });
 }));
