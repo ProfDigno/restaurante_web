@@ -130,7 +130,7 @@ router.get('/historial/:cuentaId', async (req, res, next) => {
         JOIN pago p ON p.idpago=d.fk_idpago WHERE p.fk_idcuenta=$1
         ORDER BY d.iddevolucion_pago`, [cuentaId]),
       pool.query(`SELECT dp.iddetalle_pedido, dp.fk_idpedido, cm.nombre || ' - ' || pm.nombre AS producto, um.nombre AS unidad, dp.cantidad,
-        dp.precio_venta, dp.cantidad * dp.precio_venta AS subtotal, dp.estado, dp.observaciones
+        dp.precio_venta, dp.cantidad * (dp.precio_venta + dp.precio_observacion) AS subtotal, dp.estado, dp.observaciones, dp.precio_observacion
         FROM detalle_pedido dp JOIN pedido p ON p.idpedido=dp.fk_idpedido
         JOIN producto_menu pm ON pm.idproducto_menu=dp.fk_idproducto_menu
         JOIN categoria_menu cm ON cm.idcategoria_menu=pm.fk_idcategoria_menu

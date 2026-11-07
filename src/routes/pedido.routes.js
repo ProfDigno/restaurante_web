@@ -23,7 +23,7 @@ router.get('/catalogo',route(async req=>{
       ORDER BY c.orden,c.nombre,c.idcategoria_menu`),
     pool.query('SELECT count(*)::int AS total FROM producto_menu WHERE activo AND es_vender'),
     pool.query('SELECT u.idunidad_menu,u.nombre FROM unidad_menu u WHERE u.activo AND EXISTS(SELECT 1 FROM producto_menu p WHERE p.fk_idunidad_menu=u.idunidad_menu AND p.activo AND p.es_vender AND ($1::integer IS NULL OR p.fk_idcategoria_menu=$1)) ORDER BY u.orden,u.nombre,u.idunidad_menu',[category]),
-    pool.query(`SELECT p.idproducto_menu,p.nombre,c.nombre || ' - ' || p.nombre AS nombre_mostrado,p.precio_venta,p.stock_actual,u.nombre AS unidad FROM producto_menu p JOIN unidad_menu u ON u.idunidad_menu=p.fk_idunidad_menu JOIN categoria_menu c ON c.idcategoria_menu=p.fk_idcategoria_menu WHERE ${where} ORDER BY p.orden,p.nombre,p.idproducto_menu LIMIT $4 OFFSET $5`,[...params,size,(page-1)*size]),
+    pool.query(`SELECT p.idproducto_menu,p.nombre,c.nombre || ' - ' || p.nombre AS nombre_mostrado,p.precio_venta,p.stock_actual,p.es_cocina,u.nombre AS unidad FROM producto_menu p JOIN unidad_menu u ON u.idunidad_menu=p.fk_idunidad_menu JOIN categoria_menu c ON c.idcategoria_menu=p.fk_idcategoria_menu WHERE ${where} ORDER BY p.orden,p.nombre,p.idproducto_menu LIMIT $4 OFFSET $5`,[...params,size,(page-1)*size]),
     pool.query(`SELECT count(*)::int AS total FROM producto_menu p WHERE ${where}`,params)
   ]);
   return {categorias:categories.rows,totalProductos:allProducts.rows[0].total,unidades:units.rows,items:products.rows,total:count.rows[0].total,totalPages:Math.max(1,Math.ceil(count.rows[0].total/size))};

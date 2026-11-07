@@ -70,6 +70,10 @@ export function lineasDesdePedido(pedido) {
       lines.push({ codigo: `ING-${extra.idingrediente}`, descripcion: clip(`Adicional ${extra.nombre} (${detail.nombre})`, 250),
         cantidad: Number(detail.cantidad), precio_unitario: Number(extra.precio_venta) });
     }
+    if (Number(detail.precio_observacion) > 0) {
+      lines.push({ codigo: `OBS-${detail.iddetalle_pedido}`, descripcion: clip(`Adicional: ${detail.observaciones || 'observación'} (${detail.nombre})`, 250),
+        cantidad: Number(detail.cantidad), precio_unitario: Number(detail.precio_observacion) });
+    }
   }
   if (Number(pedido.monto_delivery) > 0) lines.push({ codigo: 'DELIVERY', descripcion: 'Servicio de delivery', cantidad: 1, precio_unitario: Number(pedido.monto_delivery) });
   if (Number(pedido.monto_recargo) > 0) lines.push({ codigo: 'RECARGO', descripcion: 'Recargo', cantidad: 1, precio_unitario: Number(pedido.monto_recargo) });

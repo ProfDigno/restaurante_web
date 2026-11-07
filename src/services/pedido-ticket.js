@@ -1,4 +1,6 @@
 import PDFDocument from 'pdfkit';
+// "Obs:" del producto (observación para cocina) con su precio por unidad, si tiene.
+const obsText = line => line.observaciones ? `Obs: ${line.observaciones}${Number(line.precio_observacion) ? ` (${money(line.precio_observacion)} c/u)` : ''}` : '';
 
 const MM = 72 / 25.4;
 const WIDTH = 80 * MM;
@@ -22,11 +24,12 @@ export function renderPedidoTicketPage(pedido) {
   let products = 0;
   const lines = (pedido.detalles || []).map(line => {
     const quantity = Number(line.cantidad || 0);
-    const extras = (line.ingredientes || []).reduce((sum, item) => sum + (item.tipo_modificacion === 'AGREGAR' ? Number(item.precio_venta || 0) : 0), 0);
+    const extras = (line.ingredientes || []).reduce((sum, item) => sum + (item.tipo_modificacion === 'AGREGAR' ? Number(item.precio_venta || 0) : 0), 0) + Number(line.precio_observacion || 0);
     const unitPrice = Number(line.precio_venta || 0) + extras;
     products += quantity * unitPrice;
     const ingredients = (line.ingredientes || []).map(item => `<div class="minor">${safe(item.tipo_modificacion === 'QUITAR' ? 'Sin' : 'Con')} ${safe(item.nombre)}${item.tipo_modificacion === 'AGREGAR' && Number(item.precio_venta) ? ` (${safe(money(item.precio_venta))} c/u)` : ''}</div>`).join('');
-    return `<div class="product"><strong>${safe(line.nombre_mostrado || line.nombre || 'Producto')}</strong>${line.unidad ? `<div class="minor">Unidad: ${safe(line.unidad)}</div>` : ''}${ingredients}${row(`${quantity} x ${money(unitPrice)}`, money(quantity * unitPrice))}</div>`;
+    const observation = obsText(line) ? `<div class="minor"><strong>${safe(obsText(line))}</strong></div>` : '';
+    return `<div class="product"><strong>${safe(line.nombre_mostrado || line.nombre || 'Producto')}</strong>${line.unidad ? `<div class="minor">Unidad: ${safe(line.unidad)}</div>` : ''}${ingredients}${observation}${row(`${quantity} x ${money(unitPrice)}`, money(quantity * unitPrice))}</div>`;
   }).join('');
   const advance = pedido.pago_anticipado;
   const netAdvance = advance?.estado === 'aprobado' ? Math.max(0, Number(advance.importe) - Number(advance.devuelto || 0)) : 0;
@@ -92,7 +95,7 @@ export function renderPedidoTicket(pedido, printedAt = new Date()) {
   let products = 0;
   for (const line of pedido.detalles || []) {
     const quantity = Number(line.cantidad || 0);
-    const extras = (line.ingredientes || []).reduce((sum, item) => sum + (item.tipo_modificacion === 'AGREGAR' ? Number(item.precio_venta || 0) : 0), 0);
+    const extras = (line.ingredientes || []).reduce((sum, item) => sum + (item.tipo_modificacion === 'AGREGAR' ? Number(item.precio_venta || 0) : 0), 0) + Number(line.precio_observacion || 0);
     const unitPrice = Number(line.precio_venta || 0) + extras;
     products += quantity * unitPrice;
     text(line.nombre_mostrado || line.nombre || 'Producto', { bold: true, gap: 2 });
@@ -101,6 +104,7 @@ export function renderPedidoTicket(pedido, printedAt = new Date()) {
       const prefix = item.tipo_modificacion === 'QUITAR' ? 'Sin' : 'Con';
       text(`  ${prefix} ${item.nombre}${item.tipo_modificacion === 'AGREGAR' && Number(item.precio_venta) ? ` (${money(item.precio_venta)} c/u)` : ''}`, { size: 7.5, color: muted, gap: 1 });
     }
+    if (obsText(line)) text(`  ${obsText(line)}`, { size: 7.5, bold: true, gap: 1 });
     pair(`${quantity} x ${money(unitPrice)}`, money(quantity * unitPrice), { gap: 6 });
   }
   if (pedido.observacion) { rule(); text(`Observación: ${pedido.observacion}`); }

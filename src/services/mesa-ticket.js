@@ -45,10 +45,11 @@ export function renderMesaTicket(cuenta, pedidos, pagos, printedAt = new Date())
     text(`PEDIDO #${pedido.idpedido}`, { size: 9.5, bold: true });
     for (const line of pedido.detalles || []) {
       const quantity = Number(line.cantidad || 0);
-      const extras = (line.ingredientes || []).reduce((sum, item) => sum + (item.tipo_modificacion === 'AGREGAR' ? Number(item.precio_venta || 0) : 0), 0);
+      const extras = (line.ingredientes || []).reduce((sum, item) => sum + (item.tipo_modificacion === 'AGREGAR' ? Number(item.precio_venta || 0) : 0), 0) + Number(line.precio_observacion || 0);
       const unitPrice = Number(line.precio_venta || 0) + extras;
       text(line.nombre_mostrado || line.nombre || 'Producto', { bold: true, gap: 1 });
       for (const item of line.ingredientes || []) text(`  ${item.tipo_modificacion === 'QUITAR' ? 'Sin' : 'Con'} ${item.nombre}${item.tipo_modificacion === 'AGREGAR' && Number(item.precio_venta) ? ` (${money(item.precio_venta)} c/u)` : ''}`, { size: 7.5, color: '#52625c', gap: 1 });
+      if (line.observaciones) text(`  Obs: ${line.observaciones}${Number(line.precio_observacion) ? ` (${money(line.precio_observacion)} c/u)` : ''}`, { size: 7.5, bold: true, gap: 1 });
       pair(`${quantity} x ${money(unitPrice)}`, money(quantity * unitPrice));
     }
     if (Number(pedido.monto_recargo)) pair('Recargo', money(pedido.monto_recargo));

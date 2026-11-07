@@ -92,6 +92,18 @@
 .ingredient-modifier-toolbar button { padding: 5px 8px; border: 1px solid #d9e2dd; border-radius: 6px; background: white; font: inherit; font-size: 10px; font-weight: 800; cursor: pointer; }
 .ingredient-modifier-toolbar .modifier-add-button { color: #7046a5; border-color: #d8c5ed; background: #f7f0ff; }
 .ingredient-modifier-toolbar .modifier-remove-button { color: #8a6900; border-color: #eadb98; background: #fff9e5; }
+/* OBS: observación con precio para productos de cocina. */
+.ingredient-modifier-toolbar .modifier-obs-button { color: #1f5d8a; border-color: #b9d4ea; background: #eef6fd; }
+.ingredient-modifier-toolbar .modifier-obs-button.active { background: #1f5d8a; color: #fff; }
+.order-detail .observation-row > td { background: #eef6fd; font-size: 11px; }
+.order-detail .observation-row td:first-child { padding-left: 18px; }
+.order-detail .observation-row strong { color: #1f5d8a; overflow-wrap: anywhere; }
+.observation-editor { display: grid; grid-template-columns: minmax(0, 1fr) 120px; gap: 6px 8px; align-items: end; padding-top: 8px; border-top: 1px solid #dfe7e3; font-size: 11px; }
+.observation-editor label { display: grid; gap: 3px; font-weight: 700; color: #1f5d8a; }
+.observation-editor input { height: 32px; padding: 0 8px; border: 1px solid #b9d4ea; border-radius: 6px; font: inherit; font-size: 12px; }
+.observation-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 6px; }
+.observation-actions button { padding: 5px 12px; font-size: 11px; }
+.observation-hint { grid-column: 1 / -1; color: #a14b3f; }
 .ingredient-modifier-picker { display: flex; flex-wrap: wrap; gap: 5px; max-height: 132px; overflow-y: auto; padding: 8px 0 2px; }
 .ingredient-modifier-picker button { display: grid; gap: 2px; padding: 6px 8px; border: 1px solid #dfe7e3; border-radius: 7px; background: #fff; text-align: left; cursor: pointer; }
 .ingredient-modifier-picker button:hover { background: #fff6f1; }

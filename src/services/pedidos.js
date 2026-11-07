@@ -47,7 +47,7 @@ export async function account(c, accountId, lock = false) {
 export async function order(c, orderId) {
   const p = (await c.query('SELECT * FROM pedido WHERE idpedido=$1', [id(orderId)])).rows[0];
   if (!p) fail('Pedido no encontrado', 404);
-  p.detalles = (await c.query(`SELECT d.*,pm.nombre,cm.nombre || ' - ' || pm.nombre AS nombre_mostrado,um.nombre AS unidad FROM detalle_pedido d JOIN producto_menu pm ON pm.idproducto_menu=d.fk_idproducto_menu JOIN categoria_menu cm ON cm.idcategoria_menu=pm.fk_idcategoria_menu JOIN unidad_menu um ON um.idunidad_menu=pm.fk_idunidad_menu WHERE fk_idpedido=$1 AND d.estado<>'cancelado' ORDER BY iddetalle_pedido`, [p.idpedido])).rows;
+  p.detalles = (await c.query(`SELECT d.*,pm.nombre,pm.es_cocina,cm.nombre || ' - ' || pm.nombre AS nombre_mostrado,um.nombre AS unidad FROM detalle_pedido d JOIN producto_menu pm ON pm.idproducto_menu=d.fk_idproducto_menu JOIN categoria_menu cm ON cm.idcategoria_menu=pm.fk_idcategoria_menu JOIN unidad_menu um ON um.idunidad_menu=pm.fk_idunidad_menu WHERE fk_idpedido=$1 AND d.estado<>'cancelado' ORDER BY iddetalle_pedido`, [p.idpedido])).rows;
   const modifications = (await c.query(`SELECT dpi.iddetalle_pedido_ingrediente, dpi.fk_iddetalle_pedido, dpi.fk_idingrediente AS idingrediente,
     dpi.tipo_modificacion, dpi.cantidad, dpi.precio_venta, i.nombre, u.codigo AS unidad_codigo
     FROM detalle_pedido_ingrediente dpi JOIN detalle_pedido dp ON dp.iddetalle_pedido=dpi.fk_iddetalle_pedido
@@ -92,6 +92,19 @@ async function syncLineIngredients(c, detailId, productId, requested, user) {
       await c.query('INSERT INTO detalle_pedido_ingrediente(fk_iddetalle_pedido,fk_idingrediente,tipo_modificacion,cantidad,precio_venta,creado_por) VALUES($1,$2,$3,$4,0,$5)', [detailId,ingredientId,type,relation.cantidad,user.login]);
     }
   }
+}
+
+// Observación por producto de cocina ("Obs: sin sal") con precio opcional por unidad (arranca en 0).
+// Si la línea no trae los campos se conserva lo que tenía (previous).
+export const OBSERVACION_MAX = 200;
+function lineObservation(line, product, previous = null) {
+  if (line.observaciones === undefined && line.precio_observacion === undefined && previous) return previous;
+  const text = String(line.observaciones ?? '').trim().replace(/\s+/g, ' ');
+  const price = integer(line.precio_observacion ?? 0, 'Precio de la observación');
+  if (text.length > OBSERVACION_MAX) fail(`La observación admite hasta ${OBSERVACION_MAX} caracteres`);
+  if (price && !text) fail('Escribí la observación antes de ponerle precio');
+  if (text && !product.es_cocina) fail(`${product.nombre}: solo los productos de cocina admiten observación`);
+  return { text: text || null, price };
 }
 
 export async function saveOrder(c, body, user, orderId = null) {
@@ -153,12 +166,17 @@ export async function saveOrder(c, body, user, orderId = null) {
           antes: { producto: old.nombre_mostrado, cantidad: Number(old.cantidad), precio_venta: Number(old.precio_venta) }, despues: { cantidad: quantity } });
         await c.query('UPDATE detalle_pedido SET cantidad=$1 WHERE iddetalle_pedido=$2',[quantity,old.iddetalle_pedido]);
       }
+      const obs = lineObservation(line, old, { text: old.observaciones, price: Number(old.precio_observacion || 0) });
+      if (obs.text !== (old.observaciones || null) || obs.price !== Number(old.precio_observacion || 0)) {
+        await c.query('UPDATE detalle_pedido SET observaciones=$1,precio_observacion=$2 WHERE iddetalle_pedido=$3', [obs.text, obs.price, old.iddetalle_pedido]);
+      }
       await syncLineIngredients(c,old.iddetalle_pedido,old.fk_idproducto_menu,line.ingredientes,user);
     } else {
       const product = await sellable(c,id(line.fk_idproducto_menu, 0));
       const keepQuotedPrice = line.precio_fijado === true && user.permisos?.includes('FORM_MENU');
       const salePrice = keepQuotedPrice ? integer(line.precio_venta, 'Precio de venta') : product.precio_venta;
-      const inserted = await c.query('INSERT INTO detalle_pedido(fk_idpedido,fk_idproducto_menu,cantidad,precio_venta,precio_compra,creado_por) VALUES($1,$2,$3,$4,$5,$6) RETURNING iddetalle_pedido', [p.idpedido,product.idproducto_menu,quantity,product.precio_venta,product.precio_compra,user.login]);
+      const obs = lineObservation(line, product);
+      const inserted = await c.query('INSERT INTO detalle_pedido(fk_idpedido,fk_idproducto_menu,cantidad,precio_venta,precio_compra,observaciones,precio_observacion,creado_por) VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING iddetalle_pedido', [p.idpedido,product.idproducto_menu,quantity,product.precio_venta,product.precio_compra,obs.text,obs.price,user.login]);
       if (keepQuotedPrice && Number(salePrice) !== Number(product.precio_venta)) {
         await c.query('UPDATE detalle_pedido SET precio_venta=$1 WHERE iddetalle_pedido=$2', [salePrice,inserted.rows[0].iddetalle_pedido]);
         await auditar(c, user, { accion: 'PEDIDO_PRECIO_MANUAL', entidad: 'pedido', id: p.idpedido,

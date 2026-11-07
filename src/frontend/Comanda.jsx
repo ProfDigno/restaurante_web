@@ -120,7 +120,7 @@ export default function Comanda() {
             {line.descripcion && <p className="comanda-description">{line.descripcion}</p>}
             {line.agregados.map((name, index) => <p className="comanda-change" key={`add-${index}`}>+ Con {name}</p>)}
             {line.quitados.map((name, index) => <p className="comanda-change" key={`remove-${index}`}>− Sin {name}</p>)}
-            {line.observaciones && <p className="comanda-note">Nota: {line.observaciones}</p>}
+            {line.observaciones && <p className="comanda-note">Obs: {line.observaciones}</p>}
           </div>)}</div>
           {item.observacion && <p className="comanda-order-note">Pedido: {item.observacion}</p>}
           {!cancelled && <button type="button" className="comanda-finish" disabled={finishing !== null} onClick={() => finish(item)}>{finishing === item.idpedido ? 'Terminando…' : 'TERMINAR'}</button>}

@@ -363,6 +363,7 @@ CREATE TABLE detalle_pedido (
   fk_idproducto_menu integer NOT NULL REFERENCES producto_menu(idproducto_menu), cantidad numeric(14,0) NOT NULL CHECK (cantidad > 0),
   precio_venta numeric(14,0) NOT NULL CHECK (precio_venta >= 0), precio_compra numeric(14,0) NOT NULL CHECK (precio_compra >= 0),
   estado estado_detalle_pedido NOT NULL DEFAULT 'pendiente', observaciones text,
+  precio_observacion numeric(14,0) NOT NULL DEFAULT 0 CONSTRAINT detalle_pedido_precio_observacion_valido CHECK (precio_observacion >= 0),
   usa_receta_stock boolean,
   fecha_anulado timestamp, anulado_por text, motivo_anulado text,
   CONSTRAINT detalle_pedido_anulacion_valida CHECK (
@@ -977,7 +978,7 @@ RETURNS numeric LANGUAGE plpgsql STABLE AS $$
 DECLARE v_total numeric(14,0);
 BEGIN
   SELECT (
-    COALESCE((SELECT SUM(cantidad * precio_venta) FROM detalle_pedido WHERE fk_idpedido = p_idpedido AND estado <> 'cancelado'), 0) +
+    COALESCE((SELECT SUM(cantidad * (precio_venta + precio_observacion)) FROM detalle_pedido WHERE fk_idpedido = p_idpedido AND estado <> 'cancelado'), 0) +
     COALESCE((SELECT SUM(dp.cantidad * dpi.precio_venta)
               FROM detalle_pedido_ingrediente dpi
               JOIN detalle_pedido dp ON dp.iddetalle_pedido = dpi.fk_iddetalle_pedido

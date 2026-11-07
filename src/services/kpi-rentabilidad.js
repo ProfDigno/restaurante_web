@@ -3,7 +3,7 @@ import { pool } from '../config/database.js';
 // Análisis de rentabilidad por producto y categoría. Lo usan la pantalla, el PDF y el Excel.
 // Cuenta los mismos pedidos que el Análisis de pedidos: por fecha de confirmación, sin abiertos ni anulados,
 // y sin líneas anuladas.
-//   Venta  = cantidad × precio de venta + ingredientes agregados cobrados.
+//   Venta  = cantidad × (precio de venta + precio de la observación) + ingredientes agregados cobrados.
 //   Costo  = cantidad × costo guardado al vender (precio de compra del producto, o su receta si la tiene)
 //            + ingredientes agregados × su costo. Si una receta o un agregado se vendió antes de guardar
 //            el costo, se usa el precio actual del ingrediente y la línea queda marcada como "estimado".
@@ -16,7 +16,7 @@ const sales = (from, to) => `p.fecha_confirmado >= ${from}::date AND p.fecha_con
 
 const lines = (range, category) => `
   SELECT dp.fk_idproducto_menu, dp.cantidad, p.idpedido,
-    dp.cantidad * dp.precio_venta + dp.cantidad * COALESCE(ag.venta, 0) AS venta,
+    dp.cantidad * (dp.precio_venta + dp.precio_observacion) + dp.cantidad * COALESCE(ag.venta, 0) AS venta,
     CASE WHEN dp.usa_receta_stock THEN dp.cantidad * COALESCE(rc.costo, 0) ELSE dp.cantidad * dp.precio_compra END
       + dp.cantidad * COALESCE(ag.costo, 0) AS costo,
     (dp.usa_receta_stock AND COALESCE(rc.estimado, false)) OR COALESCE(ag.estimado, false) AS estimado,
