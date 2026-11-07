@@ -5,7 +5,9 @@
 .comanda-card { background: #fff; }
 .comanda-card.cancelled { animation: comanda-flash 1s steps(1) infinite; }
 @keyframes comanda-flash { 0%, 49% { background: #fff; } 50%, 100% { background: #e52323; color: #fff; } }
-.comanda-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; font-size: clamp(15px, 1.3vw, 19px); font-weight: 900; }
+/* Encabezado PEDIDO #n / minutos sin sangría: anula el padding de la tarjeta arriba y a los costados
+   (deja 3-4px para no pisar el borde redondeado) y lo acerca a la etiqueta de entrega. */
+.comanda-card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 6px; margin: -9px -8px -6px; font-size: clamp(15px, 1.3vw, 19px); font-weight: 900; line-height: 1.15; }
 .comanda-card-head time { font-variant-numeric: tabular-nums; white-space: nowrap; }
 .comanda-destination { display: flex; flex-wrap: wrap; gap: 5px; }
 .comanda-destination strong { padding: 5px 7px; border: 1px solid currentColor; border-radius: 7px; font-size: clamp(12px, 1vw, 15px); }
