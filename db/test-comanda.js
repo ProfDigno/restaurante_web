@@ -63,11 +63,35 @@ try {
   assert.ok(!JSON.stringify(initial).includes('precio_venta'));
   assert.ok(!JSON.stringify(initial).includes('monto_total'));
 
+  // --- Avisos en vivo (Server-Sent Events)
+  await call('/api/comandas/eventos', { role: null, status: 401 });
+  const stream = new AbortController();
+  const live = await fetch(base + '/api/comandas/eventos', { headers: { Cookie: auth.mozo }, signal: stream.signal });
+  assert.equal(live.status, 200);
+  assert.match(live.headers.get('content-type'), /text\/event-stream/);
+  assert.equal(live.headers.get('x-accel-buffering'), 'no');
+  const reader = live.body.getReader();
+  const decoder = new TextDecoder();
+  let received = '';
+  const nextChange = async (label, ms = 3000) => {
+    const deadline = Date.now() + ms;
+    while (!received.includes('event: cambio')) {
+      const left = deadline - Date.now();
+      assert.ok(left > 0, `No llegó el aviso: ${label}`);
+      const chunk = await Promise.race([reader.read(), new Promise(resolve => setTimeout(() => resolve(null), left))]);
+      if (chunk?.value) received += decoder.decode(chunk.value, { stream: true });
+    }
+    received = received.slice(received.indexOf('event: cambio') + 'event: cambio'.length);
+  };
+
   await call(`/api/comandas/${first.idpedido}/terminar`, { method: 'POST', body: { clave: randomUUID(), version_web: first.version_web } });
   assert.equal((await pool.query('SELECT estado FROM pedido WHERE idpedido=$1', [first.idpedido])).rows[0].estado, 'listo');
+  await nextChange('terminar desde la pantalla');
 
   await pool.query("UPDATE pedido SET fecha_creado=LOCALTIMESTAMP-INTERVAL '61 minutes' WHERE idpedido=ANY($1::int[])", [[noKitchen.idpedido, expired.idpedido]]);
   await finishExpiredComandas();
+  await nextChange('pase automático a TERMINADO');
+  stream.abort();
   const states = (await pool.query('SELECT idpedido,estado FROM pedido WHERE idpedido=ANY($1::int[])', [[noKitchen.idpedido, expired.idpedido]])).rows;
   assert.equal(states.find(item => item.idpedido === noKitchen.idpedido).estado, 'en_preparacion');
   assert.equal(states.find(item => item.idpedido === expired.idpedido).estado, 'listo');

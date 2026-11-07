@@ -34,3 +34,5 @@
 .comanda-legend-item { display: inline-flex; align-items: center; gap: 4px; font-variant-numeric: tabular-nums; }
 .comanda-legend-item i { width: 10px; height: 10px; border: 1px solid #17201f80; border-radius: 3px; }
 .comanda-legend-item.is-empty { opacity: .5; }
+.comanda-live { margin-left: auto; font-weight: 700; color: #8a6d1f; }
+.comanda-live.is-live { color: #1f7a4d; }

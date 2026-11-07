@@ -1,6 +1,7 @@
 import { pool } from '../config/database.js';
 import { finishOrder } from './pedidos.js';
 import { leerConfigComanda } from './comanda-config.js';
+import { avisarCambio } from './eventos.js';
 
 const kitchenLine = `EXISTS (
   SELECT 1 FROM detalle_pedido d JOIN producto_menu pm ON pm.idproducto_menu=d.fk_idproducto_menu
@@ -75,6 +76,7 @@ export async function finishExpiredComandas() {
       await client.query('BEGIN');
       await finishOrder(client, pedido.idpedido, pedido.version_web, { login: 'SISTEMA' });
       await client.query('COMMIT');
+      avisarCambio();
     } catch (error) {
       await client.query('ROLLBACK');
       if (error.status !== 409) console.error(`Comanda #${pedido.idpedido}:`, error);

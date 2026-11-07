@@ -1,4 +1,5 @@
 import { pool } from '../config/database.js';
+import { avisarCambio } from './eventos.js';
 
 export function fail(message, status = 400) { const error = new Error(message); error.status = status; throw error; }
 export function integer(value, name, min = 0) {
@@ -26,7 +27,9 @@ export async function operation(req, action) {
     if (old) { if (!old.coincide) fail('La clave ya fue utilizada para otra operación', 409); await c.query('COMMIT'); return old.respuesta; }
     const result = await action(c);
     await c.query('INSERT INTO operacion_web(clave,solicitud,respuesta,creado_por) VALUES($1,$2,$3,$4)', [key, JSON.stringify(request), JSON.stringify(result), req.user.login]);
-    await c.query('COMMIT'); return result;
+    await c.query('COMMIT');
+    avisarCambio();
+    return result;
   } catch (error) { await c.query('ROLLBACK'); throw error; } finally { c.release(); }
 }
 
