@@ -124,6 +124,31 @@ try {
   // Tras anular, se puede volver a pagar.
   assert.equal((await post('/api/pagos-delivery/pagar', payBody)).pago.total, 3000);
 
+  // --- "Ya pagado" sin caja: delivery pagado fuera del sistema. No mueve la caja ni crea gasto, exige observación.
+  const o6 = await order(beto);
+  await charge(o6);
+  const pendingBefore = (await call('/api/cajas')).delivery_pendiente;
+  const egresosSinCajaAntes = Number((await call(`/api/cajas/${box.idcaja_gral}`)).arqueos.find(a => a.fk_idforma_pago === cash).total_egresos);
+  const noCashBody = { fk_identregador_delivery: beto, inicio: today, fin: today, sin_caja: true };
+  assert.match((await post('/api/pagos-delivery/pagar', { ...noCashBody, observacion: '  ' }, { status: 400 })).error, /observación es obligatori/i);
+  const noCash = (await post('/api/pagos-delivery/pagar', { ...noCashBody, observacion: 'Pagado en efectivo el viernes, antes del sistema', total: 1500 })).pago;
+  assert.deepEqual([noCash.sin_caja, noCash.fk_idgasto, noCash.fk_idforma_pago, noCash.forma_pago, noCash.total, noCash.pedidos.length], [true, null, null, 'Sin caja', 1500, 1]);
+  const egresosSinCajaDespues = Number((await call(`/api/cajas/${box.idcaja_gral}`)).arqueos.find(a => a.fk_idforma_pago === cash).total_egresos);
+  assert.equal(egresosSinCajaDespues, egresosSinCajaAntes, 'Ya pagado no mueve la caja');
+  assert.deepEqual((await call('/api/cajas')).delivery_pendiente, { pedidos: pendingBefore.pedidos - 1, total: pendingBefore.total - 1500 }, 'Baja el aviso de caja');
+  assert.equal((await pool.query("SELECT count(*)::int AS n FROM auditoria WHERE accion='PAGO_DELIVERY_SIN_CAJA' AND id_entidad=$1", [noCash.idpago_delivery])).rows[0].n, 1);
+  data = await call(path());
+  assert.equal(courier(data, beto).pendiente, 0);
+  const listed = data.pagos.find(p => p.idpago_delivery === noCash.idpago_delivery);
+  assert.deepEqual([listed.sin_caja, listed.forma_pago, listed.observacion], [true, 'Sin caja', 'Pagado en efectivo el viernes, antes del sistema']);
+  await assert.rejects(pool.query('UPDATE pago_delivery SET observacion=NULL WHERE idpago_delivery=$1', [noCash.idpago_delivery]), /pago_delivery_origen_valido/, 'Sin caja exige observación también en la base');
+  const noCashTicket = await call(`/api/pagos-delivery/${noCash.idpago_delivery}/ticket.pdf`, { raw: true });
+  assert.equal(Buffer.from(await noCashTicket.arrayBuffer()).subarray(0, 4).toString(), '%PDF');
+  // Anularlo libera el pedido y tampoco toca la caja.
+  await post(`/api/pagos-delivery/${noCash.idpago_delivery}/anular`, { motivo: 'Era de otro entregador' });
+  assert.equal(Number((await call(`/api/cajas/${box.idcaja_gral}`)).arqueos.find(a => a.fk_idforma_pago === cash).total_egresos), egresosSinCajaAntes);
+  assert.equal(courier(await call(path()), beto).pendiente, 1500);
+
   // --- Reportes y comprobante
   const ticket = await call(`/api/pagos-delivery/${pago.idpago_delivery}/ticket.pdf`, { raw: true });
   assert.equal(Buffer.from(await ticket.arrayBuffer()).subarray(0, 4).toString(), '%PDF');

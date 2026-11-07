@@ -2336,9 +2336,16 @@ CREATE TABLE IF NOT EXISTS pago_delivery (
   fecha_hasta date NOT NULL,
   cantidad_pedidos integer NOT NULL CHECK (cantidad_pedidos > 0),
   total numeric(14,0) NOT NULL CHECK (total > 0),
-  fk_idforma_pago integer NOT NULL REFERENCES forma_pago(idforma_pago),
-  fk_idgasto integer NOT NULL UNIQUE REFERENCES gasto(idgasto),
+  fk_idforma_pago integer REFERENCES forma_pago(idforma_pago),
+  fk_idgasto integer UNIQUE REFERENCES gasto(idgasto),
+  -- sin_caja: delivery ya pagado fuera del sistema (p. ej. antes de existir esta pantalla); no mueve la caja.
+  sin_caja boolean NOT NULL DEFAULT false,
+  observacion text,
   estado varchar(10) NOT NULL DEFAULT 'pagado' CHECK (estado IN ('pagado', 'anulado')),
+  CONSTRAINT pago_delivery_origen_valido CHECK (
+    (NOT sin_caja AND fk_idgasto IS NOT NULL AND fk_idforma_pago IS NOT NULL) OR
+    (sin_caja AND fk_idgasto IS NULL AND fk_idforma_pago IS NULL AND btrim(COALESCE(observacion, '')) <> '')
+  ),
   fecha_anulado timestamp, anulado_por text, motivo_anulado text,
   CONSTRAINT pago_delivery_rango_valido CHECK (fecha_desde <= fecha_hasta),
   CONSTRAINT pago_delivery_anulacion_valida CHECK (

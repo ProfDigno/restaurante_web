@@ -6,6 +6,7 @@ import { auditar } from './auditoria.js';
 // Cuentan los pedidos DELIVERY confirmados y no anulados, por fecha de confirmación, con delivery > 0.
 // Pagar crea un Gasto "Pago a delivery" (sale de la caja abierta) y guarda qué pedidos incluye;
 // un pedido no puede estar en dos pagos activos. Anular el pago anula el gasto (vuelve a la caja).
+// "Ya pagado sin caja" (sin_caja): delivery que se pagó fuera del sistema; libera los pedidos sin mover la caja.
 export const GASTO_TIPO = 'Pago a delivery';
 const number = value => Number(value || 0);
 const isoText = iso => `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
@@ -29,9 +30,9 @@ export async function resumenDelivery(inicio, fin, { entregador = null } = {}) {
     pool.query(pedidosSql(), params),
     pool.query(`SELECT pd.idpago_delivery, to_char(pd.fecha_creado,'YYYY-MM-DD HH24:MI') AS fecha, pd.fk_identregador_delivery AS identregador,
         e.nombre_completo AS entregador, to_char(pd.fecha_desde,'YYYY-MM-DD') AS fecha_desde, to_char(pd.fecha_hasta,'YYYY-MM-DD') AS fecha_hasta,
-        pd.cantidad_pedidos, pd.total, f.nombre AS forma_pago, pd.estado, pd.creado_por, pd.motivo_anulado, pd.fk_idgasto
+        pd.cantidad_pedidos, pd.total, COALESCE(f.nombre, 'Sin caja') AS forma_pago, pd.sin_caja, pd.observacion, pd.estado, pd.creado_por, pd.motivo_anulado, pd.fk_idgasto
       FROM pago_delivery pd JOIN entregador_delivery e ON e.identregador_delivery = pd.fk_identregador_delivery
-      JOIN forma_pago f ON f.idforma_pago = pd.fk_idforma_pago
+      LEFT JOIN forma_pago f ON f.idforma_pago = pd.fk_idforma_pago
       WHERE pd.fecha_creado >= $1::date AND pd.fecha_creado < ($2::date + INTERVAL '1 day') AND ($3::int IS NULL OR pd.fk_identregador_delivery = $3)
       ORDER BY pd.fecha_creado DESC, pd.idpago_delivery DESC`, [inicio, fin, entregador]),
     entregador ? pool.query('SELECT nombre_completo FROM entregador_delivery WHERE identregador_delivery=$1', [entregador]) : Promise.resolve({ rows: [] })
@@ -71,15 +72,24 @@ export async function deliveryPendienteDeCaja(c = pool) {
 }
 
 export async function pagarDelivery(c, body, user) {
-  const entregadorId = id(body?.fk_identregador_delivery), formaId = id(body?.fk_idforma_pago);
+  const sinCaja = body?.sin_caja === true;
+  const entregadorId = id(body?.fk_identregador_delivery);
   const { inicio, fin } = body || {};
   if (!/^\d{4}-\d{2}-\d{2}$/.test(inicio || '') || !/^\d{4}-\d{2}-\d{2}$/.test(fin || '') || inicio > fin) fail('Ingresá un rango de fechas válido');
   const courier = (await c.query('SELECT nombre_completo FROM entregador_delivery WHERE identregador_delivery=$1', [entregadorId])).rows[0];
   if (!courier) fail('Entregador no encontrado', 404);
-  if (!(await c.query('SELECT 1 FROM forma_pago WHERE idforma_pago=$1 AND activo AND es_egreso', [formaId])).rowCount) fail('Seleccioná una forma de pago activa para egresos');
-  if (!(await c.query("SELECT 1 FROM caja_gral WHERE estado='abierta' FOR UPDATE")).rowCount) fail('Abrí una caja antes de pagar al entregador');
-  const tipo = (await c.query('SELECT idgasto_tipo FROM gasto_tipo WHERE lower(nombre)=lower($1)', [GASTO_TIPO])).rows[0];
-  if (!tipo) fail(`Falta el tipo de gasto "${GASTO_TIPO}". Corré la migración de pagos a delivery`, 500);
+  let formaId = null, tipo = null, observacion = null;
+  if (sinCaja) {
+    // Ya se pagó fuera del sistema: no exige caja abierta ni crea gasto, pero sí explicar cuándo y cómo se pagó.
+    observacion = textRequired(body?.observacion, 'La observación');
+    if (observacion.length > 500) fail('La observación admite hasta 500 caracteres');
+  } else {
+    formaId = id(body?.fk_idforma_pago);
+    if (!(await c.query('SELECT 1 FROM forma_pago WHERE idforma_pago=$1 AND activo AND es_egreso', [formaId])).rowCount) fail('Seleccioná una forma de pago activa para egresos');
+    if (!(await c.query("SELECT 1 FROM caja_gral WHERE estado='abierta' FOR UPDATE")).rowCount) fail('Abrí una caja antes de pagar al entregador');
+    tipo = (await c.query('SELECT idgasto_tipo FROM gasto_tipo WHERE lower(nombre)=lower($1)', [GASTO_TIPO])).rows[0];
+    if (!tipo) fail(`Falta el tipo de gasto "${GASTO_TIPO}". Corré la migración de pagos a delivery`, 500);
+  }
   // Bloquea los pedidos pendientes para que dos pagos simultáneos no incluyan el mismo pedido.
   const { rows } = await c.query(`SELECT p.idpedido, p.monto_delivery FROM pedido p
     WHERE p.tipo_entrega='DELIVERY' AND p.estado NOT IN ('abierto','cancelado') AND p.monto_delivery > 0 AND p.fk_identregador_delivery=$3
@@ -90,14 +100,19 @@ export async function pagarDelivery(c, body, user) {
   const total = rows.reduce((sum, row) => sum + number(row.monto_delivery), 0);
   // Lo que se ve en pantalla debe coincidir con lo que se paga (si alguien cobró o asignó en el medio, se avisa).
   if (body.total !== undefined && Number(body.total) !== total) fail(`El pendiente cambió a ${total.toLocaleString('es-PY')} Gs. Volvé a cargar antes de pagar`, 409);
-  const descripcion = `Pago a delivery ${courier.nombre_completo} · ${rows.length} pedidos del ${isoText(inicio)} al ${isoText(fin)}`.slice(0, 500);
-  const gasto = (await c.query(`INSERT INTO gasto(fk_idgasto_tipo,fk_idforma_pago,fecha_gasto,descripcion,total_gasto,estado,creado_por)
-    VALUES($1,$2,CURRENT_DATE,$3,$4,'pagado',$5) RETURNING idgasto`, [tipo.idgasto_tipo, formaId, descripcion, total, user.login])).rows[0];
-  const pago = (await c.query(`INSERT INTO pago_delivery(fk_identregador_delivery,fecha_desde,fecha_hasta,cantidad_pedidos,total,fk_idforma_pago,fk_idgasto,creado_por)
-    VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING idpago_delivery`, [entregadorId, inicio, fin, rows.length, total, formaId, gasto.idgasto, user.login])).rows[0];
+  let gastoId = null;
+  if (!sinCaja) {
+    const descripcion = `Pago a delivery ${courier.nombre_completo} · ${rows.length} pedidos del ${isoText(inicio)} al ${isoText(fin)}`.slice(0, 500);
+    gastoId = (await c.query(`INSERT INTO gasto(fk_idgasto_tipo,fk_idforma_pago,fecha_gasto,descripcion,total_gasto,estado,creado_por)
+      VALUES($1,$2,CURRENT_DATE,$3,$4,'pagado',$5) RETURNING idgasto`, [tipo.idgasto_tipo, formaId, descripcion, total, user.login])).rows[0].idgasto;
+  }
+  const pago = (await c.query(`INSERT INTO pago_delivery(fk_identregador_delivery,fecha_desde,fecha_hasta,cantidad_pedidos,total,fk_idforma_pago,fk_idgasto,sin_caja,observacion,creado_por)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING idpago_delivery`, [entregadorId, inicio, fin, rows.length, total, formaId, gastoId, sinCaja, observacion, user.login])).rows[0];
   for (const row of rows) {
     await c.query('INSERT INTO pago_delivery_pedido(fk_idpago_delivery,fk_idpedido,monto_delivery) VALUES($1,$2,$3)', [pago.idpago_delivery, row.idpedido, row.monto_delivery]);
   }
+  if (sinCaja) await auditar(c, user, { accion: 'PAGO_DELIVERY_SIN_CAJA', entidad: 'pago_delivery', id: pago.idpago_delivery, motivo: observacion,
+    despues: { entregador: courier.nombre_completo, total, pedidos: rows.length, periodo: `${isoText(inicio)} al ${isoText(fin)}` } });
   return { pago: await pagoDelivery(c, pago.idpago_delivery) };
 }
 
@@ -107,13 +122,15 @@ export async function anularPagoDelivery(c, pagoId, body, user) {
   const pago = (await c.query('SELECT * FROM pago_delivery WHERE idpago_delivery=$1 FOR UPDATE', [id(pagoId)])).rows[0];
   if (!pago) fail('Pago no encontrado', 404);
   if (pago.estado === 'anulado') fail('El pago ya fue anulado', 409);
-  if (!(await c.query("SELECT 1 FROM caja_gral WHERE estado='abierta' FOR UPDATE")).rowCount) fail('Abrí una caja antes de anular el pago');
-  // Anular el gasto genera la reversión en la caja abierta (la plata vuelve a caja).
-  await c.query("UPDATE gasto SET estado='anulado',fecha_anulado=CURRENT_TIMESTAMP,anulado_por=$1,motivo_anulado=$2 WHERE idgasto=$3 AND estado='pagado'", [user.login, motivo, pago.fk_idgasto]);
+  if (!pago.sin_caja) {
+    if (!(await c.query("SELECT 1 FROM caja_gral WHERE estado='abierta' FOR UPDATE")).rowCount) fail('Abrí una caja antes de anular el pago');
+    // Anular el gasto genera la reversión en la caja abierta (la plata vuelve a caja).
+    await c.query("UPDATE gasto SET estado='anulado',fecha_anulado=CURRENT_TIMESTAMP,anulado_por=$1,motivo_anulado=$2 WHERE idgasto=$3 AND estado='pagado'", [user.login, motivo, pago.fk_idgasto]);
+  }
   await c.query("UPDATE pago_delivery SET estado='anulado',fecha_anulado=CURRENT_TIMESTAMP,anulado_por=$1,motivo_anulado=$2 WHERE idpago_delivery=$3", [user.login, motivo, pago.idpago_delivery]);
   await c.query('UPDATE pago_delivery_pedido SET activo=false WHERE fk_idpago_delivery=$1', [pago.idpago_delivery]);
   await auditar(c, user, { accion: 'PAGO_DELIVERY_ANULADO', entidad: 'pago_delivery', id: pago.idpago_delivery, motivo,
-    antes: { estado: 'pagado', total: number(pago.total), pedidos: pago.cantidad_pedidos, gasto: pago.fk_idgasto }, despues: { estado: 'anulado' } });
+    antes: { estado: 'pagado', total: number(pago.total), pedidos: pago.cantidad_pedidos, ...(pago.sin_caja ? { sin_caja: true } : { gasto: pago.fk_idgasto }) }, despues: { estado: 'anulado' } });
   return { pago: await pagoDelivery(c, pago.idpago_delivery) };
 }
 
@@ -135,10 +152,10 @@ export async function asignarEntregador(c, pedidoId, body, user) {
 }
 
 export async function pagoDelivery(c, pagoId) {
-  const pago = (await c.query(`SELECT pd.*, e.nombre_completo AS entregador, e.telefono AS entregador_telefono, f.nombre AS forma_pago,
+  const pago = (await c.query(`SELECT pd.*, e.nombre_completo AS entregador, e.telefono AS entregador_telefono, COALESCE(f.nombre, 'Sin caja') AS forma_pago,
       to_char(pd.fecha_desde,'YYYY-MM-DD') AS fecha_desde, to_char(pd.fecha_hasta,'YYYY-MM-DD') AS fecha_hasta
     FROM pago_delivery pd JOIN entregador_delivery e ON e.identregador_delivery=pd.fk_identregador_delivery
-    JOIN forma_pago f ON f.idforma_pago=pd.fk_idforma_pago WHERE pd.idpago_delivery=$1`, [id(pagoId)])).rows[0];
+    LEFT JOIN forma_pago f ON f.idforma_pago=pd.fk_idforma_pago WHERE pd.idpago_delivery=$1`, [id(pagoId)])).rows[0];
   if (!pago) fail('Pago no encontrado', 404);
   pago.total = number(pago.total);
   pago.pedidos = (await c.query(`SELECT pdp.fk_idpedido AS idpedido, pdp.monto_delivery, to_char(p.fecha_confirmado,'YYYY-MM-DD') AS fecha,

@@ -20,6 +20,7 @@ export const ACCIONES = {
   ROL_MODIFICADO: 'Rol modificado',
   PERMISO_MODIFICADO: 'Permiso modificado',
   PAGO_DELIVERY_ANULADO: 'Pago a delivery anulado',
+  PAGO_DELIVERY_SIN_CAJA: 'Delivery marcado como pagado sin caja',
   ENTREGADOR_ASIGNADO: 'Entregador asignado a pedido'
 };
 

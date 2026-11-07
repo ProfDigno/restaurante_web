@@ -14,3 +14,5 @@
 .delivery-pill.due { background: #fdf3dc; color: #8a6312; }
 .delivery-pay-total { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 12px 14px; border-radius: 10px; background: #f4f7f6; }
 .delivery-pay-total strong { font-size: 22px; }
+.delivery-pay-actions { display: flex; gap: 6px; }
+.delivery-pill.nocash { background: #eef1f4; color: #526277; }

@@ -25,6 +25,8 @@ export default function PagosDelivery() {
   const [data, setData] = useState(null), [options, setOptions] = useState({ entregadores: [], formas: [], caja_abierta: true });
   const [loading, setLoading] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState('');
   const [paying, setPaying] = useState(null), [forma, setForma] = useState(''), [cancel, setCancel] = useState(null), [reason, setReason] = useState('');
+  // "Ya pagado": delivery que se pagó fuera del sistema; libera los pedidos sin mover la caja.
+  const [sinCaja, setSinCaja] = useState(false), [observacion, setObservacion] = useState('');
   const [assign, setAssign] = useState({}), [showOrders, setShowOrders] = useState(false);
 
   const loadOptions = async () => { const opts = await api('/api/pagos-delivery/opciones'); setOptions(opts); return opts; };
@@ -46,12 +48,14 @@ export default function PagosDelivery() {
       feedback.succeed(feedbackId, done, extra);
     } catch (e) { setError(e.message); feedback.fail(feedbackId, e.message); } finally { setBusy(false); }
   };
-  const openPay = async courier => { setError(''); const opts = await loadOptions().catch(e => { setError(e.message); return options; }); setForma(defaultFormId(opts.formas)); setPaying(courier); };
+  const openPay = async (courier, withoutCash = false) => { setError(''); setSinCaja(withoutCash); setObservacion(''); const opts = await loadOptions().catch(e => { setError(e.message); return options; }); setForma(defaultFormId(opts.formas)); setPaying(courier); };
   const pay = event => {
     event.preventDefault();
     run('Pagando al entregador…', async () => {
-      const { pago } = await mutate('/api/pagos-delivery/pagar', { fk_identregador_delivery: paying.id, inicio: applied.inicio, fin: applied.fin, fk_idforma_pago: forma, total: paying.pendiente });
+      const body = { fk_identregador_delivery: paying.id, inicio: applied.inicio, fin: applied.fin, total: paying.pendiente, ...(sinCaja ? { sin_caja: true, observacion } : { fk_idforma_pago: forma }) };
+      const { pago } = await mutate('/api/pagos-delivery/pagar', body);
       setPaying(null);
+      if (sinCaja) return [`${pago.pedidos.length} pedidos de ${pago.entregador} (${formatMoney(pago.total)}) marcados como ya pagados. La caja no se movió.`, {}];
       return [`Pago #${pago.idpago_delivery} a ${pago.entregador}: ${formatMoney(pago.total)} (${pago.pedidos.length} pedidos), descontado de la caja. ¿Imprimir el comprobante para que firme?`, { printUrl: ticketUrl(pago.idpago_delivery), timeoutMs: 10000 }];
     });
   };
@@ -93,7 +97,7 @@ export default function PagosDelivery() {
           <tbody>{!data.entregadores.length ? <tr><td colSpan="6" className="table-empty">Sin pedidos delivery con entregador en el período</td></tr> : data.entregadores.map(e => <tr key={e.id}>
             <td><strong>{e.nombre}</strong></td><td className="numeric-cell">{formatInteger(e.pedidos)}</td><td className="numeric-cell">{formatMoney(e.total)}</td>
             <td className="numeric-cell">{formatMoney(e.pagado)}</td><td className="numeric-cell"><strong className={e.pendiente ? 'delivery-due-text' : ''}>{formatMoney(e.pendiente)}</strong>{e.pendientes > 0 && <small>{e.pendientes} pedidos</small>}</td>
-            <td><button className="primary delivery-pay-button" disabled={busy || !e.pendiente || !options.caja_abierta} onClick={() => openPay(e)}>Pagar</button></td>
+            <td><div className="delivery-pay-actions"><button className="primary delivery-pay-button" disabled={busy || !e.pendiente || !options.caja_abierta} onClick={() => openPay(e)}>Pagar</button><button className="secondary delivery-pay-button" disabled={busy || !e.pendiente} onClick={() => openPay(e, true)} title="Ya se lo pagaste fuera del sistema: libera los pedidos sin mover la caja">Ya pagado</button></div></td>
           </tr>)}</tbody></table></div>
       </article>
 
@@ -122,26 +126,31 @@ export default function PagosDelivery() {
         <div className="catalog-table-wrap delivery-table-wrap"><table className="catalog-table"><thead><tr><th>Pago</th><th>Entregador</th><th>Período</th><th className="numeric-cell">Pedidos</th><th>Forma de pago</th><th className="numeric-cell">Total</th><th>Estado</th><th>Acciones</th></tr></thead>
           <tbody>{!data.pagos.length ? <tr><td colSpan="8" className="table-empty">Sin pagos en el período</td></tr> : data.pagos.map(p => <tr key={p.idpago_delivery} className={p.estado === 'anulado' ? 'inactive-row' : ''}>
             <td><strong>#{p.idpago_delivery}</strong><small>{p.fecha.slice(8, 10)}/{p.fecha.slice(5, 7)} {p.fecha.slice(11)} · {p.creado_por}</small></td><td>{p.entregador}</td>
-            <td>{dayText(p.fecha_desde)} al {dayText(p.fecha_hasta)}</td><td className="numeric-cell">{formatInteger(p.cantidad_pedidos)}</td><td>{p.forma_pago}</td>
+            <td>{dayText(p.fecha_desde)} al {dayText(p.fecha_hasta)}</td><td className="numeric-cell">{formatInteger(p.cantidad_pedidos)}</td><td>{p.sin_caja ? <span className="delivery-pill nocash">Sin caja</span> : p.forma_pago}{p.observacion && <small>{p.observacion}</small>}</td>
             <td className="numeric-cell"><strong>{formatMoney(p.total)}</strong></td>
             <td>{p.estado === 'anulado' ? 'Anulado' : 'Pagado'}{p.motivo_anulado && <small>Motivo: {p.motivo_anulado}</small>}</td>
-            <td><div className="order-list-actions"><a className="edit-button ticket-link order-action-icon" href={ticketUrl(p.idpago_delivery)} target="_blank" rel="noopener noreferrer" aria-label={`Imprimir comprobante del pago #${p.idpago_delivery}`} title="Imprimir comprobante"><PrinterIcon /></a>{p.estado !== 'anulado' && <button className="edit-button" disabled={busy || !options.caja_abierta} onClick={() => { setError(''); setReason(''); setCancel(p); }}>Anular</button>}</div></td>
+            <td><div className="order-list-actions"><a className="edit-button ticket-link order-action-icon" href={ticketUrl(p.idpago_delivery)} target="_blank" rel="noopener noreferrer" aria-label={`Imprimir comprobante del pago #${p.idpago_delivery}`} title="Imprimir comprobante"><PrinterIcon /></a>{p.estado !== 'anulado' && <button className="edit-button" disabled={busy || (!p.sin_caja && !options.caja_abierta)} onClick={() => { setError(''); setReason(''); setCancel(p); }}>Anular</button>}</div></td>
           </tr>)}</tbody></table></div>
       </article>
       <p className="kpi-footnote">El delivery de cada pedido es lo que se cobró al cliente según su zona. Lo cobrado entra a la caja junto con el pedido, pero es del entregador: hasta pagarlo, Caja general lo muestra como "Delivery por pagar a entregadores".</p>
     </>}
 
-    {paying && <div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true" aria-label="Pagar al entregador"><div className="modal-head"><h2>Pagar a {paying.nombre}</h2><button className="modal-close" disabled={busy} onClick={() => setPaying(null)}>×</button></div>
+    {paying && <div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true" aria-label={sinCaja ? 'Marcar como ya pagado' : 'Pagar al entregador'}><div className="modal-head"><h2>{sinCaja ? `Ya pagado a ${paying.nombre}` : `Pagar a ${paying.nombre}`}</h2><button className="modal-close" disabled={busy} onClick={() => setPaying(null)}>×</button></div>
       <form className="modal-form" onSubmit={pay}>
         <p className="delivery-pay-total"><span>{paying.pendientes} pedidos del {dayText(applied.inicio)} al {dayText(applied.fin)}</span><strong>{formatMoney(paying.pendiente)}</strong></p>
-        <div className="payment-field"><span>Forma de pago</span><FormaPagoBotones forms={options.formas} value={forma} onChange={setForma} /></div>
-        <p className="form-hint">Sale de la caja abierta como gasto "Pago a delivery". Después podés imprimir el comprobante para que firme el entregador.</p>
+        {sinCaja ? <>
+          <div className="alert delivery-warning">No mueve la caja. Usalo solo para delivery que ya le pagaste fuera del sistema (por ejemplo, antes de usar esta pantalla); los pedidos quedan como pagados.</div>
+          <label>Observación<textarea required autoFocus maxLength={500} placeholder="Ej.: pagado en efectivo el 31/10, antes de usar el sistema" value={observacion} onChange={e => setObservacion(e.target.value)} /></label>
+        </> : <>
+          <div className="payment-field"><span>Forma de pago</span><FormaPagoBotones forms={options.formas} value={forma} onChange={setForma} /></div>
+          <p className="form-hint">Sale de la caja abierta como gasto "Pago a delivery". Después podés imprimir el comprobante para que firme el entregador.</p>
+        </>}
         {error && <div className="alert error" role="alert">{error}</div>}
-        <div className="modal-actions"><button type="button" className="secondary" disabled={busy} onClick={() => setPaying(null)}>Cancelar</button><button className="primary" disabled={busy || !forma}>{busy ? 'Pagando…' : `Pagar ${formatMoney(paying.pendiente)}`}</button></div>
+        <div className="modal-actions"><button type="button" className="secondary" disabled={busy} onClick={() => setPaying(null)}>Cancelar</button><button className="primary" disabled={busy || (sinCaja ? !observacion.trim() : !forma)}>{busy ? 'Guardando…' : sinCaja ? 'Marcar como ya pagado' : `Pagar ${formatMoney(paying.pendiente)}`}</button></div>
       </form></div></div>}
 
     {cancel && <div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true" aria-label="Anular pago a delivery"><div className="modal-head"><h2>Anular pago #{cancel.idpago_delivery}</h2><button className="modal-close" disabled={busy} onClick={() => setCancel(null)}>×</button></div>
-      <form className="modal-form" onSubmit={annul}><p className="muted">{cancel.entregador} · {formatMoney(cancel.total)} · {cancel.cantidad_pedidos} pedidos. La plata vuelve a la caja abierta ({cancel.forma_pago}) y los pedidos quedan pendientes de pago otra vez.</p>
+      <form className="modal-form" onSubmit={annul}><p className="muted">{cancel.entregador} · {formatMoney(cancel.total)} · {cancel.cantidad_pedidos} pedidos. {cancel.sin_caja ? 'Era un pago sin caja: no se mueve la caja y' : `La plata vuelve a la caja abierta (${cancel.forma_pago}) y`} los pedidos quedan pendientes de pago otra vez.</p>
         <label>Motivo<textarea required autoFocus maxLength={500} value={reason} onChange={e => setReason(e.target.value)} /></label>
         {error && <div className="alert error" role="alert">{error}</div>}
         <div className="modal-actions"><button type="button" className="secondary" disabled={busy} onClick={() => setCancel(null)}>Cancelar</button><button className="primary danger" disabled={busy}>{busy ? 'Anulando…' : 'Anular pago'}</button></div>
