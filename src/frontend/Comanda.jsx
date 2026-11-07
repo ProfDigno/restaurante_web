@@ -113,6 +113,7 @@ export default function Comanda() {
         return <article className={`comanda-card${cancelled ? ' cancelled' : ''}`} style={cancelled ? undefined : { background: ageColor(seconds, config.colores) }} key={item.idpedido}>
           <div className="comanda-card-head"><span>PEDIDO #{item.idpedido}</span><time aria-label={`${Math.floor(seconds / 60)} minutos y ${seconds % 60} segundos`}>{elapsed(seconds)}</time></div>
           <div className="comanda-destination"><strong className={deliveryClass[item.tipo_entrega] || ''}>{deliveryName[item.tipo_entrega] || item.tipo_entrega}</strong>{item.mesa_numero && <strong className="comanda-table">MESA {item.mesa_numero}</strong>}</div>
+          {item.cliente_nombre && <p className="comanda-client" title={item.cliente_nombre}>{item.cliente_nombre}</p>}
           {cancelled && <div className="comanda-cancelled">ANULADO</div>}
           <div className="comanda-lines">{item.detalles.map(line => <div className="comanda-line" key={line.iddetalle_pedido}>
             <div className="comanda-product"><strong className="comanda-quantity">{line.cantidad} ×</strong><strong>{line.categoria} · {line.unidad} · {line.nombre}</strong></div>

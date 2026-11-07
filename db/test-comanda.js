@@ -61,6 +61,12 @@ try {
   assert.equal(initial.items[0].detalles[0].agregados.length, 1);
   assert.equal(initial.items[0].detalles[0].quitados.length, 1);
   assert.ok(!JSON.stringify(initial).includes('precio_venta'));
+  // Nombre del cliente debajo del tipo de pedido; el cliente ocasional genérico no se muestra.
+  const clientName = (await pool.query('SELECT nombre_completo FROM cliente WHERE idcliente=$1', [clientId])).rows[0].nombre_completo;
+  assert.equal(initial.items[0].cliente_nombre, clientName);
+  await pool.query('UPDATE cliente SET es_ocacional=true WHERE idcliente=$1', [clientId]);
+  assert.equal((await call('/api/comandas', { role: 'mozo' })).items[0].cliente_nombre, null);
+  await pool.query('UPDATE cliente SET es_ocacional=false WHERE idcliente=$1', [clientId]);
   assert.ok(!JSON.stringify(initial).includes('monto_total'));
 
   // --- Avisos en vivo (Server-Sent Events)

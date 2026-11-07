@@ -19,9 +19,11 @@ export async function listComandas() {
   const { rows: pedidos } = await pool.query(`
     SELECT p.idpedido, p.estado, p.version_web, p.tipo_entrega, p.observacion,
       p.fecha_creado, p.fecha_anulado, m.numero AS mesa_numero,
+      -- Nombre del cliente para la tarjeta; el cliente ocasional genérico no se muestra.
+      CASE WHEN NOT cl.es_ocacional THEN cl.nombre_completo END AS cliente_nombre,
       EXTRACT(EPOCH FROM (LOCALTIMESTAMP-p.fecha_creado))::int AS edad_segundos,
       CASE WHEN p.fecha_anulado IS NOT NULL THEN EXTRACT(EPOCH FROM (LOCALTIMESTAMP-p.fecha_anulado))::int END AS anulado_segundos
-    FROM pedido p LEFT JOIN mesa m ON m.idmesa=p.fk_idmesa
+    FROM pedido p LEFT JOIN mesa m ON m.idmesa=p.fk_idmesa LEFT JOIN cliente cl ON cl.idcliente=p.fk_idcliente
     WHERE (p.estado='en_preparacion' OR (p.estado='cancelado' AND p.fecha_anulado > LOCALTIMESTAMP-make_interval(secs => $1)))
       AND ${kitchenLine}
     ORDER BY p.fecha_creado, p.idpedido`, [config.anulado_visible_seg]);
