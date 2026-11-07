@@ -1,0 +1,17 @@
+/* Barras horizontales con etiquetas largas (categoría · unidad · producto): cada gráfico a todo el ancho. */
+.profit-grid { grid-template-columns: 1fr; }
+.profit-chart { margin-top: 14px; }
+.profit-warning { background: #fff6e8; border: 1px solid #f1d29c; color: #6d4c12; }
+.profit-warning em { font-style: normal; font-weight: 700; }
+.profit-table-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; margin: 16px 0 12px; }
+.profit-table-tools .search-box { flex: 1 1 240px; max-width: 360px; }
+.profit-check { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: #526277; }
+.profit-table td small { display: block; color: #7b8899; font-size: 11px; margin-top: 2px; }
+.profit-sort { border: 0; background: none; padding: 0; font: inherit; color: inherit; text-transform: inherit; letter-spacing: inherit; cursor: pointer; }
+.profit-badge { display: inline-block; min-width: 56px; padding: 3px 8px; border-radius: 99px; font-weight: 700; font-size: 12px; text-align: center; }
+.profit-badge.is-good { background: #e3f3ec; color: #24704e; }
+.profit-badge.is-mid { background: #fdf3dc; color: #8a6312; }
+.profit-badge.is-low { background: #fbe6e1; color: #a14b3f; }
+.profit-badge.is-missing { background: #eef1f4; color: #7b8899; }
+.profit-badge.is-loss { background: #c4513f; color: #fff; }
+.profit-loss { color: #c4513f; }

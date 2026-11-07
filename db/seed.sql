@@ -25,6 +25,7 @@ INSERT INTO usuario_rol_evento (nombre, descripcion, codigo_evento, creado_por) 
   ('Pedidos', 'Acceso al formulario Pedidos', 'FORM_PEDIDOS', 'SISTEMA'),
   ('Comanda', 'Acceso al formulario Comanda', 'FORM_COMANDA', 'SISTEMA'),
   ('Análisis de pedidos', 'Acceso al análisis de pedidos', 'FORM_KPI_PEDIDOS', 'SISTEMA'),
+  ('Análisis de rentabilidad', 'Acceso al análisis de rentabilidad por producto y categoría', 'FORM_KPI_RENTABILIDAD', 'SISTEMA'),
   ('Gastos', 'Acceso al formulario Gastos', 'FORM_GASTOS', 'SISTEMA'),
   ('Análisis de gastos', 'Acceso al análisis de gastos', 'FORM_KPI_GASTOS', 'SISTEMA'),
   ('Análisis de compras', 'Acceso al análisis de compras', 'FORM_KPI_COMPRAS', 'SISTEMA'),

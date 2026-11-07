@@ -36,6 +36,7 @@ import datosRestauranteRoutes from './routes/datos-restaurante.routes.js';
 import comandaConfigRoutes from './routes/comanda-config.routes.js';
 import securityRoutes from './routes/security.routes.js';
 import auditoriaRoutes from './routes/auditoria.routes.js';
+import kpiRentabilidadRoutes from './routes/kpi-rentabilidad.routes.js';
 import { requireAuth, requirePermission } from './middleware/auth.js';
 import { notFound, errorHandler } from './middleware/error.js';
 import { sameOriginWrites } from './middleware/security.js';
@@ -76,6 +77,7 @@ app.use('/api/ubicaciones-mesa', requireAuth, requirePermission('ubicaciones-mes
 app.use('/api/pedidos', requireAuth, requirePermission('pedidos'), pedidoRoutes);
 app.use('/api/comandas', requireAuth, requirePermission('comanda'), comandaRoutes);
 app.use('/api/kpi-pedidos', requireAuth, requirePermission('kpi-pedidos'), kpiPedidoRoutes);
+app.use('/api/kpi-rentabilidad', requireAuth, requirePermission('kpi-rentabilidad'), kpiRentabilidadRoutes);
 app.use('/api/formas-pago', requireAuth, requirePermission('formas-pago'), formaPagoRoutes);
 app.use('/api/cajas', requireAuth, (req, res, next) =>
   req.path === '/estado' || req.path === '/abrir' ? next() : requirePermission('caja')(req, res, next), cajaRoutes);

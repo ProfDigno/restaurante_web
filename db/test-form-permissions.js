@@ -34,10 +34,10 @@ try {
     return data;
   }
   const admin = await call('/api/auth/me');
-  assert.equal(admin.user.permisos.filter(code => code.startsWith('FORM_')).length, 34);
+  assert.equal(admin.user.permisos.filter(code => code.startsWith('FORM_')).length, 35);
   assert.deepEqual(admin.menu.map(section => section.label), ['Operación', 'Usuarios', 'RR.HH.', 'Cliente', 'Productos', 'Mesas', 'Caja y finanzas', 'Gasto', 'Compra', 'Factura', 'Configuración del sistema']);
   assert.deepEqual(admin.menu.map(section => section.items.map(item => item.id)), [
-    ['mesas', 'solo-mesas', 'historial-mesas', 'pedidos', 'solo-pedido', 'comanda', 'kpi-pedidos'],
+    ['mesas', 'solo-mesas', 'historial-mesas', 'pedidos', 'solo-pedido', 'comanda', 'kpi-pedidos', 'kpi-rentabilidad'],
     ['usuarios', 'roles', 'permisos', 'auditoria'],
     ['personal', 'vales'],
     ['clientes', 'zonas', 'delivery'],

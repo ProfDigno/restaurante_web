@@ -8,6 +8,7 @@ export const menuSections = [
       { id: 'solo-pedido', label: 'Solo pedido', path: '/pedido', permission: 'pedidos', external: true },
       { id: 'comanda', label: 'Comanda', path: '/comanda' },
       { id: 'kpi-pedidos', label: 'Análisis de pedidos', path: '/kpi-pedidos' },
+      { id: 'kpi-rentabilidad', label: 'Análisis de rentabilidad', path: '/kpi-rentabilidad' },
       { id: 'buscar', label: 'Buscar pedidos', path: '/buscar' }
     ]
   },
@@ -96,7 +97,7 @@ export const implementedForms = new Set([
   'unidades-menu', 'ubicaciones-mesa', 'mesas-config', 'ingredientes',
   'unidades-medida', 'conversiones-unidad', 'caja', 'formas-pago', 'gastos', 'kpi-gastos', 'gasto-tipos',
   'clientes', 'zonas', 'usuarios', 'roles', 'permisos', 'compras', 'kpi-compras', 'proveedores', 'personal', 'vales',
-  'facturas', 'datos-restaurante', 'configuracion-comanda', 'auditoria'
+  'facturas', 'datos-restaurante', 'configuracion-comanda', 'auditoria', 'kpi-rentabilidad'
 ]);
 
 export const permissionCode = (formId) => `FORM_${formId.toUpperCase().replaceAll('-', '_')}`;

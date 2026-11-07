@@ -2269,3 +2269,32 @@ CREATE TRIGGER auditoria_inmutable_fila BEFORE UPDATE OR DELETE ON auditoria
 DROP TRIGGER IF EXISTS auditoria_inmutable_truncate ON auditoria;
 CREATE TRIGGER auditoria_inmutable_truncate BEFORE TRUNCATE ON auditoria
   FOR EACH STATEMENT EXECUTE PROCEDURE auditoria_inmutable();
+
+-- Rentabilidad: costo del ingrediente al momento de la venta (agregados y recetas).
+-- Las filas anteriores quedan con costo_unitario NULL: el análisis usa el precio actual y las marca como "estimado".
+-- Compatible con PostgreSQL 9.5.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='detalle_pedido_ingrediente' AND column_name='costo_unitario') THEN
+    ALTER TABLE detalle_pedido_ingrediente ADD COLUMN costo_unitario numeric(14,0) CHECK (costo_unitario IS NULL OR costo_unitario >= 0);
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_schema=current_schema() AND table_name='detalle_pedido_receta' AND column_name='costo_unitario') THEN
+    ALTER TABLE detalle_pedido_receta ADD COLUMN costo_unitario numeric(14,0) CHECK (costo_unitario IS NULL OR costo_unitario >= 0);
+  END IF;
+END $$;
+
+CREATE OR REPLACE FUNCTION fijar_costo_ingrediente_venta()
+RETURNS trigger LANGUAGE plpgsql AS $$
+BEGIN
+  IF NEW.costo_unitario IS NULL THEN
+    SELECT precio_compra INTO NEW.costo_unitario FROM ingrediente WHERE idingrediente = NEW.fk_idingrediente;
+  END IF;
+  RETURN NEW;
+END;
+$$;
+DROP TRIGGER IF EXISTS trg_costo_detalle_pedido_ingrediente ON detalle_pedido_ingrediente;
+CREATE TRIGGER trg_costo_detalle_pedido_ingrediente BEFORE INSERT ON detalle_pedido_ingrediente
+  FOR EACH ROW EXECUTE PROCEDURE fijar_costo_ingrediente_venta();
+DROP TRIGGER IF EXISTS trg_costo_detalle_pedido_receta ON detalle_pedido_receta;
+CREATE TRIGGER trg_costo_detalle_pedido_receta BEFORE INSERT ON detalle_pedido_receta
+  FOR EACH ROW EXECUTE PROCEDURE fijar_costo_ingrediente_venta();
