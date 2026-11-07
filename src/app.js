@@ -38,6 +38,7 @@ import securityRoutes from './routes/security.routes.js';
 import auditoriaRoutes from './routes/auditoria.routes.js';
 import kpiRentabilidadRoutes from './routes/kpi-rentabilidad.routes.js';
 import kpiValeRoutes from './routes/kpi-vale.routes.js';
+import cargoPersonalRoutes from './routes/cargo-personal.routes.js';
 import { requireAuth, requirePermission } from './middleware/auth.js';
 import { notFound, errorHandler } from './middleware/error.js';
 import { sameOriginWrites } from './middleware/security.js';
@@ -87,6 +88,8 @@ app.use('/api/gastos', requireAuth, requirePermission('gastos'), gastoRoutes);
 app.use('/api/kpi-gastos', requireAuth, requirePermission('kpi-gastos'), kpiGastoRoutes);
 app.use('/api/kpi-compras', requireAuth, requirePermission('kpi-compras'), kpiCompraRoutes);
 app.use('/api/personal', requireAuth, requirePermission('personal'), personalRoutes);
+// Personal lee el catálogo de cargos para su selector; solo Cargos lo modifica.
+app.use('/api/cargos-personal', requireAuth, requirePermission('cargos', ['personal']), cargoPersonalRoutes);
 app.use('/api/vales', requireAuth, requirePermission('vales'), valeRoutes);
 app.use('/api/kpi-vales', requireAuth, requirePermission('kpi-vales'), kpiValeRoutes);
 app.use('/api/proveedores', requireAuth, requirePermission('proveedores'), proveedorRoutes);

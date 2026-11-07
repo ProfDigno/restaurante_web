@@ -267,6 +267,18 @@ CREATE TABLE proveedor (
   nombre varchar(140) NOT NULL UNIQUE, ruc varchar(30) UNIQUE, direccion varchar(250), telefono varchar(40), contacto varchar(120), email varchar(255), activo boolean NOT NULL DEFAULT true
 );
 
+-- Cargos del personal (RR.HH.): catálogo sin duplicados (único sin distinguir mayúsculas, sin espacios sobrantes).
+CREATE SEQUENCE IF NOT EXISTS cargo_personal_id_seq;
+CREATE TABLE cargo_personal (
+  idcargo_personal integer NOT NULL DEFAULT nextval('cargo_personal_id_seq'::regclass) PRIMARY KEY,
+  fecha_creado timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  creado_por text NOT NULL DEFAULT 'SISTEMA',
+  nombre varchar(80) NOT NULL CONSTRAINT cargo_personal_nombre_limpio CHECK (nombre <> '' AND nombre = btrim(nombre) AND nombre !~ '\s{2,}'),
+  orden smallint NOT NULL DEFAULT 0 CHECK (orden >= 0),
+  activo boolean NOT NULL DEFAULT true
+);
+CREATE UNIQUE INDEX cargo_personal_nombre_unico ON cargo_personal (lower(nombre));
+
 CREATE TABLE personal (
   idpersonal integer NOT NULL DEFAULT nextval('personal_id_seq'::regclass) PRIMARY KEY,
   fecha_creado timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -276,7 +288,7 @@ CREATE TABLE personal (
   telefono varchar(40),
   limite_monto_vale numeric(14,0) NOT NULL DEFAULT 0 CHECK (limite_monto_vale >= 0),
   activo boolean NOT NULL DEFAULT true,
-  cargo varchar(80),
+  fk_idcargo_personal integer REFERENCES cargo_personal(idcargo_personal),
   direccion varchar(250),
   fecha_ingreso date,
   tipo_pago varchar(10) NOT NULL DEFAULT 'MENSUAL' CONSTRAINT personal_tipo_pago_valido CHECK (tipo_pago IN ('DIARIO','SEMANAL','QUINCENAL','MENSUAL')),

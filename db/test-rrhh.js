@@ -41,14 +41,15 @@ try {
 
   // Permisos: solo admin ve RR.HH.
   const me = await call('/api/auth/me');
-  assert.deepEqual(me.menu.find(s => s.id === 'rrhh').items.map(i => i.id), ['personal', 'vales', 'kpi-vales']);
+  assert.deepEqual(me.menu.find(s => s.id === 'rrhh').items.map(i => i.id), ['personal', 'cargos', 'vales', 'kpi-vales']);
   for (const rol of ['encargado', 'mozo']) {
     await call('/api/personal', { as: rol, status: 403 });
     await call('/api/vales', { as: rol, status: 403 });
   }
 
   // Personal: alta, validaciones y edición.
-  const persona = { nombre_completo: 'Ana Prueba', documento: '123', telefono: '0981', cargo: 'Cocinera', direccion: 'Centro', fecha_ingreso: '2026-10-01', tipo_pago: 'SEMANAL', monto_pago: '600000', limite_monto_vale: '200000', observacion: '', activo: true };
+  const cocinera = (await post('/api/cargos-personal', { nombre: 'Cocinera', activo: true })).item;
+  const persona = { nombre_completo: 'Ana Prueba', documento: '123', telefono: '0981', fk_idcargo_personal: cocinera.idcargo_personal, direccion: 'Centro', fecha_ingreso: '2026-10-01', tipo_pago: 'SEMANAL', monto_pago: '600000', limite_monto_vale: '200000', observacion: '', activo: true };
   const ana = (await post('/api/personal', persona)).item;
   assert.equal(ana.tipo_pago, 'SEMANAL');
   assert.equal(Number(ana.monto_pago), 600000);

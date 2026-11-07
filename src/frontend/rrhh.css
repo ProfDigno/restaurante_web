@@ -32,3 +32,4 @@
 .rrhh-modal .modal-form input:not([type=checkbox]):focus, .rrhh-modal .modal-form textarea:focus { border-color: var(--accent); box-shadow: 0 0 0 3px #d26d4f1c; }
 .rrhh-modal .modal-form input[type=text].money-input { text-align: right; font-weight: 700; font-size: 14px; }
 .rrhh-modal .rrhh-pay .form-grid label { display: grid; gap: 7px; }
+.form-hint-warning { color: #a14b3f; font-weight: 700; }

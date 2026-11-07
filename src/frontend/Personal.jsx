@@ -8,16 +8,20 @@ import './rrhh.css';
 // RR.HH. · Personal: datos básicos, forma de pago y límite de vales.
 export const tiposPago = [['DIARIO', 'Diario', 'por día'], ['SEMANAL', 'Semanal', 'por semana'], ['QUINCENAL', 'Quincenal', 'por quincena'], ['MENSUAL', 'Mensual', 'por mes']];
 const tipoLabel = tipo => tiposPago.find(([value]) => value === tipo) || [tipo, tipo, ''];
-const blank = () => ({ nombre_completo: '', documento: '', telefono: '', cargo: '', direccion: '', fecha_ingreso: '', tipo_pago: 'MENSUAL', monto_pago: '0', limite_monto_vale: '0', observacion: '', activo: true });
+const blank = () => ({ nombre_completo: '', documento: '', telefono: '', fk_idcargo_personal: '', direccion: '', fecha_ingreso: '', tipo_pago: 'MENSUAL', monto_pago: '0', limite_monto_vale: '0', observacion: '', activo: true });
 
 export default function Personal() {
   const [data, setData] = useState({ items: [], total: 0, totalPages: 1 }), [search, setSearch] = useState(''), [estado, setEstado] = useState(''), [page, setPage] = useState(1), [pageSize, setSize] = useState(25);
   const [form, setForm] = useState(null), [selected, setSelected] = useState(null), [loading, setLoading] = useState(false), [busy, setBusy] = useState(false), [error, setError] = useState('');
+  // Cargos del catálogo (RR.HH. → Cargos): se vuelven a leer al abrir el formulario por si se agregó uno.
+  const [cargos, setCargos] = useState([]);
+  const loadCargos = () => api('/api/cargos-personal/opciones').then(result => setCargos(result.items)).catch(e => setError(e.message));
   const load = async () => { setLoading(true); try { setData(await api(`/api/personal?${new URLSearchParams({ search, estado, page, pageSize })}`)); } catch (e) { setError(e.message); } finally { setLoading(false); } };
   useEffect(() => { load(); }, [search, estado, page, pageSize]);
+  useEffect(() => { if (form) loadCargos(); }, [form === null]);
   const perform = async fn => { if (busy) return; setBusy(true); setError(''); try { await fn(); await load(); } catch (e) { setError(e.message); } finally { setBusy(false); } };
-  const save = e => { e.preventDefault(); perform(async () => { const result = await mutate(form.idpersonal ? `/api/personal/${form.idpersonal}` : '/api/personal', form, form.idpersonal ? 'PUT' : 'POST'); setSelected(result.item); setForm(null); }); };
-  const toggle = item => perform(async () => { const result = await mutate(`/api/personal/${item.idpersonal}`, { ...item, activo: !item.activo }, 'PUT'); setSelected(result.item); });
+  const save = e => { e.preventDefault(); perform(async () => { const { cargo, ...body } = form; const result = await mutate(form.idpersonal ? `/api/personal/${form.idpersonal}` : '/api/personal', body, form.idpersonal ? 'PUT' : 'POST'); setSelected(result.item); setForm(null); }); };
+  const toggle = item => perform(async () => { const { cargo, ...rest } = item; const result = await mutate(`/api/personal/${item.idpersonal}`, { ...rest, activo: !item.activo }, 'PUT'); setSelected(result.item); });
   const edit = item => { setError(''); setForm({ ...blank(), ...Object.fromEntries(Object.entries(item).map(([k, v]) => [k, v ?? ''])), monto_pago: String(Number(item.monto_pago || 0)), limite_monto_vale: String(Number(item.limite_monto_vale || 0)), activo: item.activo }); };
   const field = (key, label, max = 120, type = 'text') => <label key={key}>{label}<input type={type} maxLength={max} value={form[key] || ''} onChange={e => setForm({ ...form, [key]: e.target.value })} /></label>;
   return <div className="catalog-page">
@@ -41,7 +45,12 @@ export default function Personal() {
     {form && <div className="modal-backdrop"><div className="modal rrhh-modal" role="dialog" aria-modal="true" aria-label="Personal"><div className="modal-head"><h2>{form.idpersonal ? 'Editar' : 'Nuevo'} personal</h2><button className="modal-close" disabled={busy} onClick={() => setForm(null)}>×</button></div>
       <form className="modal-form" onSubmit={save}>
         <label>Nombre completo<input type="text" autoFocus required maxLength={120} value={form.nombre_completo} onChange={e => setForm({ ...form, nombre_completo: e.target.value })} /></label>
-        <div className="form-grid">{field('documento', 'Documento (CI)', 40)}{field('telefono', 'Teléfono', 40)}{field('cargo', 'Cargo', 80)}{field('fecha_ingreso', 'Fecha de ingreso', 10, 'date')}</div>
+        <div className="form-grid">{field('documento', 'Documento (CI)', 40)}{field('telefono', 'Teléfono', 40)}
+          <label>Cargo<select value={String(form.fk_idcargo_personal ?? '')} onChange={e => setForm({ ...form, fk_idcargo_personal: e.target.value })}>
+            <option value="">Sin cargo</option>
+            {cargos.filter(item => item.activo || String(item.idcargo_personal) === String(form.fk_idcargo_personal)).map(item => <option key={item.idcargo_personal} value={item.idcargo_personal}>{item.nombre}{item.activo ? '' : ' (inactivo)'}</option>)}
+          </select>{!cargos.some(item => item.activo) && <small className="form-hint">Creá los cargos en RR.HH. → Cargos</small>}</label>
+          {field('fecha_ingreso', 'Fecha de ingreso', 10, 'date')}</div>
         {field('direccion', 'Dirección', 250)}
         <fieldset className="rrhh-pay"><legend>Forma de pago</legend>
           <div className="rrhh-pay-options" role="radiogroup" aria-label="Forma de pago">{tiposPago.map(([value, label, per]) => <button type="button" key={value} role="radio" aria-checked={form.tipo_pago === value} className={form.tipo_pago === value ? 'active' : ''} onClick={() => setForm({ ...form, tipo_pago: value })}><strong>{label}</strong><small>{per}</small></button>)}</div>

@@ -47,7 +47,9 @@ try {
   assert.equal(sueldoDelPeriodo(0, 'MENSUAL', 30), 0);
 
   // --- Datos: tres personas, caja abierta y vales (uno anulado)
-  const persona = (nombre, cargo, tipo_pago, monto_pago) => post('/api/personal', { nombre_completo: nombre, documento: '', telefono: '', cargo, direccion: '', fecha_ingreso: '', tipo_pago, monto_pago: String(monto_pago), limite_monto_vale: '0', observacion: '', activo: true }).then(r => r.item);
+  const cargoIds = {};
+  for (const nombre of ['Cocinera', 'Mozo']) cargoIds[nombre] = (await post('/api/cargos-personal', { nombre, activo: true })).item.idcargo_personal;
+  const persona = (nombre, cargo, tipo_pago, monto_pago) => post('/api/personal', { nombre_completo: nombre, documento: '', telefono: '', fk_idcargo_personal: cargoIds[cargo], direccion: '', fecha_ingreso: '', tipo_pago, monto_pago: String(monto_pago), limite_monto_vale: '0', observacion: '', activo: true }).then(r => r.item);
   const ana = await persona('Ana Cocina', 'Cocinera', 'MENSUAL', 3000000);
   const beto = await persona('Beto Salón', 'Mozo', 'DIARIO', 100000);
   const caro = await persona('Caro Sin Sueldo', 'Cocinera', 'MENSUAL', 0);

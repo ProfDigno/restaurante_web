@@ -30,19 +30,19 @@ export async function kpiVales(inicio, fin, { detalle = false, personal = null }
       FROM generate_series($1::date,$2::date,INTERVAL '1 day') AS d(dia)
       LEFT JOIN vale v ON v.fecha_vale >= d.dia AND v.fecha_vale < d.dia + INTERVAL '1 day' AND v.estado='pagado' AND ${byPerson}
       GROUP BY d.dia ORDER BY d.dia`, params),
-    pool.query(`SELECT p.idpersonal AS id,p.nombre_completo AS nombre,p.cargo,p.activo,p.tipo_pago,p.monto_pago,p.limite_monto_vale,
+    pool.query(`SELECT p.idpersonal AS id,p.nombre_completo AS nombre,cg.nombre AS cargo,p.activo,p.tipo_pago,p.monto_pago,p.limite_monto_vale,
       count(*)::int AS cantidad,sum(v.monto_vale) AS monto,max(v.monto_vale) AS mayor,to_char(max(v.fecha_vale),'YYYY-MM-DD') AS ultimo
-      FROM vale v JOIN personal p ON p.idpersonal=v.fk_idpersonal
-      WHERE ${range} AND v.estado='pagado' GROUP BY p.idpersonal ORDER BY monto DESC,p.nombre_completo`, params),
+      FROM vale v JOIN personal p ON p.idpersonal=v.fk_idpersonal LEFT JOIN cargo_personal cg ON cg.idcargo_personal=p.fk_idcargo_personal
+      WHERE ${range} AND v.estado='pagado' GROUP BY p.idpersonal,cg.nombre ORDER BY monto DESC,p.nombre_completo`, params),
     pool.query(`SELECT f.idforma_pago AS id,f.nombre,count(*)::int AS cantidad,sum(v.monto_vale) AS monto
       FROM vale v JOIN forma_pago f ON f.idforma_pago=v.fk_idforma_pago
       WHERE ${range} AND v.estado='pagado' GROUP BY f.idforma_pago,f.nombre ORDER BY monto DESC`, params),
-    pool.query(`SELECT COALESCE(NULLIF(trim(p.cargo),''),'Sin cargo') AS nombre,count(*)::int AS cantidad,sum(v.monto_vale) AS monto
-      FROM vale v JOIN personal p ON p.idpersonal=v.fk_idpersonal
+    pool.query(`SELECT COALESCE(cg.nombre,'Sin cargo') AS nombre,count(*)::int AS cantidad,sum(v.monto_vale) AS monto
+      FROM vale v JOIN personal p ON p.idpersonal=v.fk_idpersonal LEFT JOIN cargo_personal cg ON cg.idcargo_personal=p.fk_idcargo_personal
       WHERE ${range} AND v.estado='pagado' GROUP BY 1 ORDER BY monto DESC`, params),
-    detalle ? pool.query(`SELECT v.idvale,to_char(v.fecha_vale,'YYYY-MM-DD') AS fecha,p.nombre_completo AS personal,p.cargo,
+    detalle ? pool.query(`SELECT v.idvale,to_char(v.fecha_vale,'YYYY-MM-DD') AS fecha,p.nombre_completo AS personal,cg.nombre AS cargo,
       f.nombre AS forma_pago,v.descripcion,v.monto_vale AS monto,v.estado::text AS estado,v.creado_por,v.motivo_anulado
-      FROM vale v JOIN personal p ON p.idpersonal=v.fk_idpersonal JOIN forma_pago f ON f.idforma_pago=v.fk_idforma_pago
+      FROM vale v JOIN personal p ON p.idpersonal=v.fk_idpersonal LEFT JOIN cargo_personal cg ON cg.idcargo_personal=p.fk_idcargo_personal JOIN forma_pago f ON f.idforma_pago=v.fk_idforma_pago
       WHERE ${range} AND v.estado IN ('pagado','anulado') ORDER BY v.fecha_vale,v.idvale`, params) : Promise.resolve({ rows: [] })
   ]);
   const s = summary.rows[0];
@@ -75,5 +75,6 @@ export async function kpiVales(inicio, fin, { detalle = false, personal = null }
 
 // Opciones del filtro: todo el personal (también inactivo, para consultar períodos pasados).
 export async function kpiValesOpciones() {
-  return { personal: (await pool.query('SELECT idpersonal AS id,nombre_completo AS nombre,cargo,activo FROM personal ORDER BY activo DESC,nombre_completo')).rows };
+  return { personal: (await pool.query(`SELECT p.idpersonal AS id,p.nombre_completo AS nombre,cg.nombre AS cargo,p.activo FROM personal p
+    LEFT JOIN cargo_personal cg ON cg.idcargo_personal=p.fk_idcargo_personal ORDER BY p.activo DESC,p.nombre_completo`)).rows };
 }

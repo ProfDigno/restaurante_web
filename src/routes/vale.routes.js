@@ -10,13 +10,15 @@ import { auditar } from '../services/auditoria.js';
 const router=Router();
 const route=fn=>async(req,res,next)=>{try{res.json(await fn(req));}catch(error){if(['P0001','23514','23503'].includes(error.code))error.status=400;next(error);}};
 const validDate=value=>/^\d{4}-\d{2}-\d{2}$/.test(value||'')&&!Number.isNaN(Date.parse(`${value}T00:00:00Z`))&&new Date(`${value}T00:00:00Z`).toISOString().slice(0,10)===value;
-const select=`SELECT v.*,p.nombre_completo AS personal_nombre,p.documento AS personal_documento,p.cargo AS personal_cargo,
+const select=`SELECT v.*,p.nombre_completo AS personal_nombre,p.documento AS personal_documento,cg.nombre AS personal_cargo,
   p.tipo_pago AS personal_tipo_pago,f.nombre AS forma_pago_nombre
-  FROM vale v JOIN personal p ON p.idpersonal=v.fk_idpersonal JOIN forma_pago f ON f.idforma_pago=v.fk_idforma_pago`;
+  FROM vale v JOIN personal p ON p.idpersonal=v.fk_idpersonal LEFT JOIN cargo_personal cg ON cg.idcargo_personal=p.fk_idcargo_personal
+  JOIN forma_pago f ON f.idforma_pago=v.fk_idforma_pago`;
 
 router.get('/opciones',route(async()=>{
   const [personal,formas,caja]=await Promise.all([
-    pool.query(`SELECT idpersonal,nombre_completo,cargo,limite_monto_vale,activo FROM personal ORDER BY activo DESC,nombre_completo`),
+    pool.query(`SELECT p.idpersonal,p.nombre_completo,cg.nombre AS cargo,p.limite_monto_vale,p.activo FROM personal p
+      LEFT JOIN cargo_personal cg ON cg.idcargo_personal=p.fk_idcargo_personal ORDER BY p.activo DESC,p.nombre_completo`),
     pool.query('SELECT idforma_pago,nombre,es_default FROM forma_pago WHERE activo AND es_egreso ORDER BY orden,nombre'),
     pool.query("SELECT 1 FROM caja_gral WHERE estado='abierta'")
   ]);
