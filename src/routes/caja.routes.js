@@ -4,6 +4,7 @@ import { requireAuth, requireCurrentForm } from '../middleware/auth.js';
 import { operation, integer, id, fail } from '../services/pedidos.js';
 import { renderCajaTicket } from '../services/caja-ticket.js';
 import { auditar } from '../services/auditoria.js';
+import { deliveryPendienteDeCaja } from '../services/pagos-delivery.js';
 
 const router = Router();
 const validDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value || '') && !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
@@ -94,7 +95,8 @@ router.get('/', formAccess, route(async (req) => {
     pool.query(`SELECT count(*)::int AS total FROM caja_gral cg WHERE ${range}`, dates)
   ]);
   const total = count.rows[0].total;
-  return { abierta: open.rows[0] || null, cerradas: closed.rows, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
+  // Delivery ya cobrado que todavía no se pagó al entregador: está en caja pero no es del local.
+  return { abierta: open.rows[0] || null, delivery_pendiente: open.rows[0] ? await deliveryPendienteDeCaja() : null, cerradas: closed.rows, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
 }));
 
 router.get('/:id', formAccess, route(async (req) => {
@@ -129,7 +131,8 @@ router.get('/:id', formAccess, route(async (req) => {
     LEFT JOIN gasto g ON g.idgasto=i.fk_idgasto
     LEFT JOIN vale v ON v.idvale=i.fk_idvale
     WHERE i.fk_idcaja_gral=$1 ORDER BY i.idcaja_item DESC LIMIT $2 OFFSET $3`, [cajaId, pageSize, (page - 1) * pageSize]);
-  return { caja, efectivo: await activeCash(), pendientes: caja.estado === 'abierta' ? await pendingPayments(pool) : [], arqueos: arqueos.rows, movimientos: movimientos.rows, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
+  return { caja, efectivo: await activeCash(), pendientes: caja.estado === 'abierta' ? await pendingPayments(pool) : [],
+    delivery_pendiente: caja.estado === 'abierta' ? await deliveryPendienteDeCaja() : null, arqueos: arqueos.rows, movimientos: movimientos.rows, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
 }));
 
 router.post('/:id/cerrar', formAccess, route((req) => operation(req, async (client) => {

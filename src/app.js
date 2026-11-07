@@ -39,6 +39,7 @@ import auditoriaRoutes from './routes/auditoria.routes.js';
 import kpiRentabilidadRoutes from './routes/kpi-rentabilidad.routes.js';
 import kpiValeRoutes from './routes/kpi-vale.routes.js';
 import cargoPersonalRoutes from './routes/cargo-personal.routes.js';
+import pagoDeliveryRoutes from './routes/pago-delivery.routes.js';
 import { requireAuth, requirePermission } from './middleware/auth.js';
 import { notFound, errorHandler } from './middleware/error.js';
 import { sameOriginWrites } from './middleware/security.js';
@@ -85,6 +86,7 @@ app.use('/api/cajas', requireAuth, (req, res, next) =>
   req.path === '/estado' || req.path === '/abrir' ? next() : requirePermission('caja')(req, res, next), cajaRoutes);
 app.use('/api/gasto-tipos', requireAuth, requirePermission('gasto-tipos'), gastoTipoRoutes);
 app.use('/api/gastos', requireAuth, requirePermission('gastos'), gastoRoutes);
+app.use('/api/pagos-delivery', requireAuth, requirePermission('pagos-delivery'), pagoDeliveryRoutes);
 app.use('/api/kpi-gastos', requireAuth, requirePermission('kpi-gastos'), kpiGastoRoutes);
 app.use('/api/kpi-compras', requireAuth, requirePermission('kpi-compras'), kpiCompraRoutes);
 app.use('/api/personal', requireAuth, requirePermission('personal'), personalRoutes);

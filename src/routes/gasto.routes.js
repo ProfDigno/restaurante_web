@@ -48,6 +48,8 @@ router.post('/:id/anular',route(req=>operation(req,async c=>{
   const gasto=(await c.query('SELECT estado,total_gasto,descripcion FROM gasto WHERE idgasto=$1 FOR UPDATE',[gastoId])).rows[0];
   if(!gasto)fail('Gasto no encontrado',404);
   if(gasto.estado!=='pagado')fail('El gasto ya fue anulado',409);
+  // Un pago a delivery se anula desde su pantalla, para liberar también los pedidos que incluye.
+  if((await c.query("SELECT 1 FROM pago_delivery WHERE fk_idgasto=$1 AND estado='pagado'",[gastoId])).rowCount)fail('Este gasto es un pago a delivery: anulalo desde Caja y finanzas → Pagos a delivery',409);
   if(!(await c.query("SELECT 1 FROM caja_gral WHERE estado='abierta' FOR UPDATE")).rowCount)fail('Abrí una caja antes de anular el gasto');
   await c.query("UPDATE gasto SET estado='anulado',fecha_anulado=CURRENT_TIMESTAMP,anulado_por=$1,motivo_anulado=$2 WHERE idgasto=$3",[req.user.login,motivo,gastoId]);
   await auditar(c,req.user,{accion:'GASTO_ANULADO',entidad:'gasto',id:gastoId,motivo,

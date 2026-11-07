@@ -18,7 +18,9 @@ export const ACCIONES = {
   USUARIO_MODIFICADO: 'Usuario modificado',
   ROL_CREADO: 'Rol creado',
   ROL_MODIFICADO: 'Rol modificado',
-  PERMISO_MODIFICADO: 'Permiso modificado'
+  PERMISO_MODIFICADO: 'Permiso modificado',
+  PAGO_DELIVERY_ANULADO: 'Pago a delivery anulado',
+  ENTREGADOR_ASIGNADO: 'Entregador asignado a pedido'
 };
 
 export async function auditar(c, user, { accion, entidad, id = null, antes = null, despues = null, motivo = null }) {

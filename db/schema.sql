@@ -1639,6 +1639,16 @@ BEGIN
      (to_jsonb(OLD) - 'estado' - 'fecha_anulado' - 'anulado_por' - 'motivo_anulado') THEN
     RETURN NEW;
   END IF;
+  -- Pagos a delivery: en un pedido delivery se puede asignar o cambiar solo el entregador (a uno activo),
+  -- aunque la cuenta ya esté cerrada (pedido cobrado). Ningún otro dato puede cambiar.
+  IF TG_OP = 'UPDATE' AND NEW.tipo_entrega = 'DELIVERY' AND NEW.estado <> 'cancelado' AND
+     NEW.fk_identregador_delivery IS NOT NULL AND NEW.fk_identregador_delivery IS DISTINCT FROM OLD.fk_identregador_delivery AND
+     (to_jsonb(NEW) - 'fk_identregador_delivery') = (to_jsonb(OLD) - 'fk_identregador_delivery') THEN
+    IF NOT EXISTS (SELECT 1 FROM entregador_delivery WHERE identregador_delivery = NEW.fk_identregador_delivery AND activo) THEN
+      RAISE EXCEPTION 'El entregador no existe o está inactivo';
+    END IF;
+    RETURN NEW;
+  END IF;
   SELECT tipo, estado, fk_idmesa, fk_idcliente INTO v_tipo_cuenta, v_estado_cuenta, v_mesa_cuenta, v_cliente_cuenta
   FROM cuenta WHERE idcuenta = NEW.fk_idcuenta;
   IF NOT FOUND OR v_estado_cuenta <> 'abierta' THEN RAISE EXCEPTION 'La cuenta no existe o está cerrada'; END IF;
@@ -2311,3 +2321,39 @@ CREATE TRIGGER trg_costo_detalle_pedido_ingrediente BEFORE INSERT ON detalle_ped
 DROP TRIGGER IF EXISTS trg_costo_detalle_pedido_receta ON detalle_pedido_receta;
 CREATE TRIGGER trg_costo_detalle_pedido_receta BEFORE INSERT ON detalle_pedido_receta
   FOR EACH ROW EXECUTE PROCEDURE fijar_costo_ingrediente_venta();
+
+-- Pagos a delivery: lo cobrado por delivery es del entregador. Al pagarle, la plata sale de la caja abierta
+-- como un Gasto del tipo "Pago a delivery" (la caja, el arqueo y el Análisis de gastos ya lo descuentan).
+-- Cada pago guarda qué pedidos incluye; un pedido no puede estar en dos pagos activos.
+-- Compatible con PostgreSQL 9.5 e idempotente.
+CREATE SEQUENCE IF NOT EXISTS pago_delivery_id_seq;
+CREATE TABLE IF NOT EXISTS pago_delivery (
+  idpago_delivery integer NOT NULL DEFAULT nextval('pago_delivery_id_seq'::regclass) PRIMARY KEY,
+  fecha_creado timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  creado_por text NOT NULL DEFAULT 'SISTEMA',
+  fk_identregador_delivery integer NOT NULL REFERENCES entregador_delivery(identregador_delivery),
+  fecha_desde date NOT NULL,
+  fecha_hasta date NOT NULL,
+  cantidad_pedidos integer NOT NULL CHECK (cantidad_pedidos > 0),
+  total numeric(14,0) NOT NULL CHECK (total > 0),
+  fk_idforma_pago integer NOT NULL REFERENCES forma_pago(idforma_pago),
+  fk_idgasto integer NOT NULL UNIQUE REFERENCES gasto(idgasto),
+  estado varchar(10) NOT NULL DEFAULT 'pagado' CHECK (estado IN ('pagado', 'anulado')),
+  fecha_anulado timestamp, anulado_por text, motivo_anulado text,
+  CONSTRAINT pago_delivery_rango_valido CHECK (fecha_desde <= fecha_hasta),
+  CONSTRAINT pago_delivery_anulacion_valida CHECK (
+    (estado = 'anulado' AND fecha_anulado IS NOT NULL AND anulado_por IS NOT NULL AND motivo_anulado IS NOT NULL) OR
+    (estado = 'pagado' AND fecha_anulado IS NULL AND anulado_por IS NULL AND motivo_anulado IS NULL)
+  )
+);
+CREATE INDEX IF NOT EXISTS pago_delivery_entregador_idx ON pago_delivery (fk_identregador_delivery, fecha_creado DESC);
+
+CREATE TABLE IF NOT EXISTS pago_delivery_pedido (
+  fk_idpago_delivery integer NOT NULL REFERENCES pago_delivery(idpago_delivery),
+  fk_idpedido integer NOT NULL REFERENCES pedido(idpedido),
+  monto_delivery numeric(14,0) NOT NULL CHECK (monto_delivery > 0),
+  activo boolean NOT NULL DEFAULT true,
+  PRIMARY KEY (fk_idpago_delivery, fk_idpedido)
+);
+-- Un pedido solo puede estar en un pago activo (al anular el pago, sus pedidos quedan libres).
+CREATE UNIQUE INDEX IF NOT EXISTS pago_delivery_pedido_unico ON pago_delivery_pedido (fk_idpedido) WHERE activo;

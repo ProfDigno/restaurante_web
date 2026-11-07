@@ -23,3 +23,5 @@
 .cash-page .actions-col .order-list-actions > * { margin: 0; box-sizing: border-box; }
 .cash-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
 .cash-section-head h3 { margin: 0; }
+/* Aviso: delivery cobrado que todavía no se pagó al entregador. */
+.cash-delivery-notice { margin-top: 12px; background: #fff6e8; border: 1px solid #f1d29c; color: #6d4c12; }

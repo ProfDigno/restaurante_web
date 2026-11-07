@@ -7,7 +7,7 @@ import './auditoria.css';
 
 // Auditoría: registro de solo lectura de las acciones sensibles (anulaciones, precios, descuentos, caja, usuarios).
 const dateTime = value => value ? new Date(value).toLocaleString('es-PY') : '—';
-const entidades = { pedido: 'Pedido', producto: 'Producto', ingrediente: 'Ingrediente', compra: 'Compra', gasto: 'Gasto', vale: 'Vale', caja: 'Caja', factura: 'Factura', usuario: 'Usuario', rol: 'Rol', permiso: 'Permiso' };
+const entidades = { pedido: 'Pedido', producto: 'Producto', ingrediente: 'Ingrediente', compra: 'Compra', gasto: 'Gasto', vale: 'Vale', caja: 'Caja', factura: 'Factura', usuario: 'Usuario', rol: 'Rol', permiso: 'Permiso', pago_delivery: 'Pago a delivery' };
 const etiquetas = {
   precio_venta: 'Precio de venta', precio_compra: 'Precio de compra', precio_lista: 'Precio de lista', stock_actual: 'Stock',
   monto_descuento: 'Descuento', motivo_descuento: 'Motivo del descuento', monto_total: 'Total', estado_pago: 'Estado de pago',

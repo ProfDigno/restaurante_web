@@ -32,6 +32,7 @@ INSERT INTO usuario_rol_evento (nombre, descripcion, codigo_evento, creado_por) 
   ('Personal', 'Acceso al formulario Personal (RR.HH.)', 'FORM_PERSONAL', 'SISTEMA'),
   ('Vales', 'Acceso al formulario Vales (RR.HH.)', 'FORM_VALES', 'SISTEMA'),
   ('Cargos', 'Acceso al catálogo de cargos del personal (RR.HH.)', 'FORM_CARGOS', 'SISTEMA'),
+  ('Pagos a delivery', 'Acceso a los pagos a entregadores de delivery', 'FORM_PAGOS_DELIVERY', 'SISTEMA'),
   ('Análisis de vales', 'Acceso al análisis de vales del personal (RR.HH.)', 'FORM_KPI_VALES', 'SISTEMA'),
   ('Compra', 'Acceso al formulario Compra', 'FORM_COMPRAS', 'SISTEMA'),
   ('Proveedor', 'Acceso al formulario Proveedor', 'FORM_PROVEEDORES', 'SISTEMA'),
@@ -153,3 +154,6 @@ SELECT c.idcategoria_menu, u.idunidad_menu, g.idgrupo_menu, 'Plato de la casa', 
 FROM categoria_menu c, unidad_menu u, grupo_menu g
 WHERE c.nombre = 'Platos principales' AND u.nombre = 'Porción' AND g.nombre = 'Comida'
   AND NOT EXISTS (SELECT 1 FROM producto_menu p WHERE p.fk_idcategoria_menu=c.idcategoria_menu AND p.fk_idunidad_menu=u.idunidad_menu AND p.fk_idgrupo_menu=g.idgrupo_menu AND p.nombre='Plato de la casa');
+-- Tipo de gasto que usan los Pagos a delivery.
+INSERT INTO gasto_tipo (nombre, orden, creado_por) SELECT 'Pago a delivery', COALESCE((SELECT MAX(orden) FROM gasto_tipo), 0) + 1, 'SISTEMA'
+WHERE NOT EXISTS (SELECT 1 FROM gasto_tipo WHERE lower(nombre) = 'pago a delivery');

@@ -1,0 +1,16 @@
+.delivery-pay-page .kpi-panel-heading p { max-width: 760px; }
+.delivery-table-wrap { margin-top: 14px; }
+.delivery-table-wrap td small { display: block; color: #7b8899; font-size: 11px; margin-top: 2px; }
+.delivery-warning { background: #fff6e8; border: 1px solid #f1d29c; color: #6d4c12; }
+.delivery-due strong, .delivery-due-text { color: #b4532a; }
+.delivery-pay-button { padding: 6px 14px; }
+.delivery-unassigned { border-color: #f1d29c; background: #fffaf1; }
+.delivery-assign { display: flex; gap: 6px; align-items: center; }
+.delivery-assign select { height: 32px; min-width: 150px; padding: 0 8px; border: 1px solid #dce5df; border-radius: 8px; background: #fff; font: inherit; font-size: 13px; }
+.delivery-assign button { padding: 5px 12px; }
+.delivery-heading { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.delivery-pill { display: inline-block; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 700; }
+.delivery-pill.paid { background: #e3f3ec; color: #24704e; }
+.delivery-pill.due { background: #fdf3dc; color: #8a6312; }
+.delivery-pay-total { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; padding: 12px 14px; border-radius: 10px; background: #f4f7f6; }
+.delivery-pay-total strong { font-size: 22px; }

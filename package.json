@@ -32,6 +32,7 @@
     "db:migrate-kpi-vales": "node db/migrate-kpi-vales.js",
     "db:migrate-cargo-personal": "node db/migrate-cargo-personal.js",
     "db:migrate-observacion-detalle": "node db/migrate-observacion-detalle.js",
+    "db:migrate-pago-delivery": "node db/migrate-pago-delivery.js",
     "test:pedidos": "node db/test-pedidos-web.js && node db/test-pedidos-http.js",
     "test:form-permissions": "node db/test-form-permissions.js",
     "test:comanda": "node db/test-comanda.js",
@@ -41,7 +42,8 @@
     "test:rentabilidad": "node db/test-rentabilidad.js",
     "test:kpi-vales": "node db/test-kpi-vales.js",
     "test:cargos": "node db/test-cargos.js",
-    "test:observacion": "node db/test-observacion.js"
+    "test:observacion": "node db/test-observacion.js",
+    "test:pago-delivery": "node db/test-pago-delivery.js"
   },
   "dependencies": {
     "bcryptjs": "^2.4.3",
