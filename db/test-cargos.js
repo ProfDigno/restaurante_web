@@ -97,11 +97,11 @@ try {
 
   // --- Migración: cargos escritos a mano con duplicados pasan al catálogo unificados
   const legacy = `test_cargos_legacy_${Date.now()}`;
-  await admin.query(`CREATE SCHEMA "${legacy}"`);
   const old = new pg.Client(pool.options);
-  await old.connect();
-  await old.query(`SET search_path TO "${legacy}"`);
   try {
+    await admin.query(`CREATE SCHEMA "${legacy}"`);
+    await old.connect();
+    await old.query(`SET search_path TO "${legacy}"`);
     await old.query(`CREATE TABLE personal (idpersonal serial PRIMARY KEY, nombre_completo text NOT NULL, cargo varchar(80), activo boolean NOT NULL DEFAULT true)`);
     await old.query(`INSERT INTO personal(nombre_completo, cargo) VALUES
       ('A','Cocinera'),('B','COCINERA '),('C',' cocinera'),('D','Cocinera'),('E','Mozo   de salón'),('F','mozo de salón'),('G',NULL),('H','  ')`);
@@ -115,7 +115,7 @@ try {
     await old.query(sql);
     assert.equal((await old.query('SELECT count(*)::int AS n FROM cargo_personal')).rows[0].n, 2, 'Correrla de nuevo no cambia nada');
   } finally {
-    await old.end();
+    await old.end().catch(() => {});
     await admin.query(`DROP SCHEMA IF EXISTS "${legacy}" CASCADE`);
   }
 
