@@ -1,6 +1,7 @@
 import 'dotenv/config';
 import pg from 'pg';
 import { readFile, writeFile } from 'node:fs/promises';
+import { importIngredientes, prepareIngredientes, readIngredientes } from './gorila-ingredientes.js';
 
 // Importa la base del sistema anterior (SisDaoSamu3, base bdgorila_12) a una base NUEVA del sistema
 // restaurante (por defecto bdrestaurante_gorila). La base actual (DB_NAME) solo se lee: de ella se copia
@@ -66,7 +67,8 @@ async function readSource() {
       tarjetas: await q('SELECT * FROM venta_tarjeta ORDER BY idventa_tarjeta'),
       cierres: await q('SELECT * FROM caja_cierre ORDER BY idcaja_cierre'),
       detalles: await q('SELECT * FROM caja_detalle ORDER BY idcaja_detalle'),
-      itemCierre: await q('SELECT fk_idcaja_cierre, fk_idcaja_detalle FROM item_caja_cierre')
+      itemCierre: await q('SELECT fk_idcaja_cierre, fk_idcaja_detalle FROM item_caja_cierre'),
+      ingredientesProducto: await readIngredientes(c)
     };
   } finally { await c.query('ROLLBACK'); await c.end(); }
 }
@@ -91,7 +93,7 @@ async function readConfig() {
 // ---------------------------------------------------------------- preparación (en memoria, sin escribir)
 function prepare(src, cfg) {
   const report = { origen: {}, importado: {}, normalizado: {}, avisos: {} };
-  for (const [k, v] of Object.entries(src)) report.origen[k] = v.length;
+  for (const [k, v] of Object.entries(src)) if (Array.isArray(v)) report.origen[k] = v.length;
   const login = new Map(src.usuarios.map(u => [u.idusuario, clip(u.usuario || u.nombre, 60) || ACTOR]));
   const who = id => login.get(id) || ACTOR;
 
@@ -396,7 +398,7 @@ function prepare(src, cfg) {
     lineas: detalles.length, pagos: pagos.length, cajas: cajas.length, movimientos_caja: cajaItems.length, gastos: gastos.length, pagos_delivery: pagosDelivery.length };
 
   return { categorias, unidades, grupos, productos, zonas, clientes, entregadores, sinMesaUbicacion, sinMesa, cuentas, pedidos, detalles, pagos, cajas, arqueos, cajaItems,
-    gastoTipos, gastos, pagosDelivery, pagoDeliveryPedidos, report, verifCajas, FORMA };
+    gastoTipos, gastos, pagosDelivery, pagoDeliveryPedidos, report, verifCajas, FORMA, ingredientesProducto: prepareIngredientes(src.ingredientesProducto) };
 }
 
 // Totales esperados del sistema anterior (para comparar después de importar).
@@ -472,6 +474,9 @@ async function load(data, cfg) {
     // Secuencias al siguiente número libre.
     const seqs = (await c.query(`SELECT table_name t, column_name col, substring(column_default from 'nextval\\(''([^'']+)''') seq FROM information_schema.columns WHERE table_schema='public' AND column_default LIKE 'nextval(%'`)).rows;
     for (const s of seqs) await c.query(`SELECT setval('${s.seq}', COALESCE((SELECT max(${s.col}) FROM ${s.t}), 0) + 1, false)`);
+    // Ingredientes de cada producto (lista AGREGAR/QUITAR del pedido).
+    process.stdout.write(`  ingredientes: ${JSON.stringify(await importIngredientes(c, data.ingredientesProducto, ACTOR))}
+`);
     return { c, started };
   } catch (error) { if (started) await c.query('ROLLBACK').catch(() => {}); await c.end(); throw error; }
 }
