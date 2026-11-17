@@ -33,6 +33,7 @@
     "db:migrate-cargo-personal": "node db/migrate-cargo-personal.js",
     "db:migrate-observacion-detalle": "node db/migrate-observacion-detalle.js",
     "db:migrate-pago-delivery": "node db/migrate-pago-delivery.js",
+    "db:migrate-gorila": "node db/migrate-gorila.js",
     "test:pedidos": "node db/test-pedidos-web.js && node db/test-pedidos-http.js",
     "test:form-permissions": "node db/test-form-permissions.js",
     "test:comanda": "node db/test-comanda.js",
