@@ -6,6 +6,7 @@ import { ExcelIcon, PdfIcon } from './ActionIcons.jsx';
 import './kpi-pedidos.css';
 import './kpi-gastos.css';
 import './kpi-vales.css';
+import { EvolutionChart, EvolutionToggle, evolutionTitle, useEvolutionPeriod } from './Evolucion.jsx';
 
 // RR.HH. · Análisis de vales: adelantos pagados al personal en el período, por persona, cargo y forma de pago.
 const colors = ['#d07a55', '#4f83c4', '#66aa8b', '#ab84be', '#d9a440', '#639ba8', '#dc7891'];
@@ -37,6 +38,7 @@ export default function KpiVales() {
   const [range, setRange] = useState(initialRange), [applied, setApplied] = useState(initialRange);
   const [data, setData] = useState(null), [loading, setLoading] = useState(false), [error, setError] = useState('');
   const [personal, setPersonal] = useState([]);
+  const [period, setPeriod] = useEvolutionPeriod('kpi-vales-evolucion');
   useEffect(() => { fetch('/api/kpi-vales/opciones').then(r => r.ok ? r.json() : { personal: [] }).then(body => setPersonal(body.personal || [])).catch(() => {}); }, []);
   useEffect(() => {
     const controller = new AbortController();
@@ -74,7 +76,7 @@ export default function KpiVales() {
         <div><span>Del sueldo del período</span><strong>{percent(s.pct_sueldo)}</strong><small>{s.pct_sueldo === null ? 'Sin sueldos cargados en Personal' : `Sobre ${formatMoney(s.sueldo_periodo)} (aprox.)`}{s.anulados.cantidad ? ` · ${formatInteger(s.anulados.cantidad)} ${s.anulados.cantidad === 1 ? 'anulado' : 'anulados'} aparte` : ''}</small></div>
       </div>
       <div className="kpi-grid">
-        <Card title="Evolución diaria" subtitle="Cantidad e importe de vales pagados"><div className="kpi-chart wide"><ResponsiveContainer width="100%" height="100%"><ComposedChart data={data.dias} margin={{ top: 14, right: 12, left: 4, bottom: 0 }}><CartesianGrid strokeDasharray="3 5" vertical={false} stroke="#e8edf3" /><XAxis dataKey="fecha" tickFormatter={shortDate} minTickGap={18} /><YAxis yAxisId="count" allowDecimals={false} width={35} /><YAxis yAxisId="amount" orientation="right" tickFormatter={formatInteger} width={75} /><Tooltip formatter={(value, name) => name === 'Importe' ? formatMoney(value) : formatInteger(value)} labelFormatter={shortDate} /><Legend /><Bar yAxisId="count" dataKey="cantidad" name="Vales" fill={colors[0]} radius={[5, 5, 0, 0]} maxBarSize={26} /><Line yAxisId="amount" type="monotone" dataKey="monto" name="Importe" stroke={colors[1]} strokeWidth={3} dot={false} activeDot={{ r: 5 }} /></ComposedChart></ResponsiveContainer></div></Card>
+        <Card title={evolutionTitle(period)} subtitle={`Cantidad e importe de vales pagados por ${period === 'mes' ? 'mes' : 'día'}`}><EvolutionToggle period={period} onChange={setPeriod} /><EvolutionChart dias={data.dias} period={period} countKey="cantidad" countName="Vales" amountName="Importe" colors={colors} /></Card>
         <Card title="Vales por persona" subtitle="Importe pagado en el período (cantidad de vales entre paréntesis)" empty={!people.length} wide>
           <div className="voucher-chart" style={{ height: Math.max(140, people.length * 36 + 30) }}><ResponsiveContainer width="100%" height="100%"><BarChart data={people} layout="vertical" margin={{ top: 4, right: 24, left: 8, bottom: 4 }}><CartesianGrid strokeDasharray="3 5" horizontal={false} stroke="#e8edf3" /><XAxis type="number" tickFormatter={formatInteger} /><YAxis dataKey="etiqueta" type="category" width={210} tick={{ fontSize: 12 }} interval={0} /><Tooltip formatter={value => formatMoney(value)} /><Bar dataKey="monto" name="Importe" radius={[0, 5, 5, 0]} maxBarSize={24}>{people.map((row, index) => <Cell key={row.id} fill={colors[index % colors.length]} />)}</Bar></BarChart></ResponsiveContainer></div>
         </Card>
