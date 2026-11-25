@@ -34,7 +34,8 @@ const shape = row => {
     monto_delivery: number(row.monto_delivery), delivery_a_pagar: row.delivery_ya_pagado ? 0 : number(row.monto_delivery) };
 };
 
-async function formaEfectivo(c) {
+// También la usa el panel del entregador (/delivery) para sus totales.
+export async function formaEfectivo(c) {
   const forma = (await c.query(`SELECT idforma_pago FROM forma_pago WHERE activo AND es_ingreso AND es_egreso
     ORDER BY (lower(nombre)='efectivo') DESC, es_default DESC, orden LIMIT 1`)).rows[0];
   if (!forma || !(await c.query("SELECT 1 FROM forma_pago WHERE idforma_pago=$1 AND (lower(nombre)='efectivo' OR es_default)", [forma.idforma_pago])).rowCount) {

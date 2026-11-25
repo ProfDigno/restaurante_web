@@ -109,6 +109,39 @@ try {
   assert.equal((await post(`/api/pedidos/${deBeto.idpedido}/pago-anticipado`, { fk_idforma_pago: cash, importe: 1000 })).status, 200);
   ok((await request(`/api/delivery-app/pedidos/${deBeto.idpedido}/forma-pago`, { method: 'PUT', cookie: betoCookie, body: { fk_idforma_pago: card } })).status === 409, 'Con cobro registrado no se indica forma');
 
+  // --- Totales del turno: neto = efectivo − delivery; POS aparte (debe coincidir con el reporte de la máquina).
+  await pool.query("UPDATE forma_pago SET usa_pos=true WHERE idforma_pago=$1", [card]);
+  const hash2 = await bcrypt.hash('5555', 4);
+  const dani = (await pool.query("INSERT INTO entregador_delivery(nombre_completo,usuario,password_hash) VALUES('Dani Turno','dani',$1) RETURNING identregador_delivery AS id", [hash2])).rows[0].id;
+  await pool.query("INSERT INTO entregador_delivery(nombre_completo,usuario,password_hash) VALUES('Eli Pos','eli',$1)", [hash2]);
+  const daniCookie = (await login('dani', '5555')).cookie.split(';')[0];
+  const eliCookie = (await login('eli', '5555')).cookie.split(';')[0];
+  const tomar = async (cookie, forma) => {
+    const o = await order();
+    assert.equal((await request(`/api/delivery-app/pedidos/${o.idpedido}/asignarme`, { method: 'POST', cookie, body: {} })).status, 200);
+    if (forma) assert.equal((await request(`/api/delivery-app/pedidos/${o.idpedido}/forma-pago`, { method: 'PUT', cookie, body: { fk_idforma_pago: forma } })).status, 200);
+    return o;
+  };
+  const enEfectivo = await tomar(daniCookie, cash), sinForma = await tomar(daniCookie, null), conPos = await tomar(daniCookie, card);
+  const totales = async cookie => (await request('/api/delivery-app/pedidos', { cookie })).data.totales;
+  let t = await totales(daniCookie);
+  ok(t.pedidos === 3 && t.efectivo === 150000 && t.pos_total === 75000 && t.pos[0]?.nombre === 'Débito' && t.delivery === 45000 && t.neto === 105000,
+    'Totales: efectivo 150.000, POS 75.000, delivery 45.000, entrega 105.000');
+  ok(t.sin_forma === 1 && t.pendiente.pedidos === 3 && t.rendido.pedidos === 0, 'Pedido sin forma se cuenta como efectivo y se avisa');
+  const eliPos = await tomar(eliCookie, card);
+  t = await totales(eliCookie);
+  ok(t.efectivo === 0 && t.pos_total === 75000 && t.neto === -15000, 'Todo por POS: neto negativo (la caja le paga el delivery)');
+  // Rendir dos pedidos: el turno sigue igual, pasan de "falta rendir" a "ya rendido" con los cobros reales.
+  const rendir = await post('/api/pagos-delivery/rendir', { fk_identregador_delivery: dani, pedidos: [
+    { idpedido: enEfectivo.idpedido, pagos: [{ fk_idforma_pago: cash, importe: 75000 }] },
+    { idpedido: conPos.idpedido, pagos: [{ fk_idforma_pago: card, importe: 75000 }] }] });
+  assert.equal(rendir.status, 200, JSON.stringify(rendir.data));
+  t = await totales(daniCookie);
+  ok(t.efectivo === 150000 && t.pos_total === 75000 && t.delivery === 45000 && t.neto === 105000, 'Después de rendir, el turno mantiene sus totales');
+  ok(t.rendido.pedidos === 2 && t.rendido.neto === 45000 && t.pendiente.pedidos === 1 && t.pendiente.neto === 60000, 'Separa lo ya rendido de lo que falta rendir');
+  ok(rendir.data.rendicion.neto === t.rendido.neto, 'El neto rendido coincide con la Rendición');
+  assert.ok(sinForma && eliPos);
+
   // --- Cambiar el PIN cierra la sesión
   assert.equal((await request(`/api/entregadores-delivery/${ana}`, { method: 'PUT', body: { nombre_completo: 'Ana Moto', usuario: 'ana', password: '4321' } })).status, 200);
   ok((await request('/api/delivery-app/pedidos', { cookie: anaCookie })).status === 401, 'Con PIN nuevo la sesión anterior deja de valer');

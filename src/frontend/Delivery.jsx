@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { Fragment, useCallback, useEffect, useRef, useState } from 'react';
 import { formatMoney } from './formatters.js';
 import './delivery.css';
 
@@ -162,6 +162,59 @@ function PedidoCard({ pedido, formas, onAsignar, onForma, busy }) {
   );
 }
 
+// Neto = efectivo cobrado − delivery. Positivo: ya se quedó con su ganancia y entrega el resto.
+// Negativo: el efectivo no cubre su delivery y la caja le paga la diferencia.
+function Neto({ neto, delivery }) {
+  const positivo = neto >= 0;
+  return (
+    <div className={`dl-neto ${positivo ? 'ok' : 'debe'}`}>
+      {positivo ? (
+        <>
+          <span className="dl-neto-label">Tu ganancia</span>
+          <strong>{formatMoney(delivery)}</strong>
+          <span className="dl-neto-sub">Entregás a la caja: <b>{formatMoney(neto)}</b></span>
+        </>
+      ) : (
+        <>
+          <span className="dl-neto-label">La caja te paga</span>
+          <strong>− {formatMoney(-neto)}</strong>
+          <span className="dl-neto-sub">El efectivo no cubre tu delivery de {formatMoney(delivery)}</span>
+        </>
+      )}
+    </div>
+  );
+}
+
+function Totales({ totales }) {
+  if (!totales?.pedidos) return <div className="dl-empty"><b>Todavía no tenés pedidos en este turno</b><span>Cuando te asignes pedidos vas a ver acá tus totales.</span></div>;
+  const t = totales;
+  return (
+    <section className="dl-totales">
+      <Neto neto={t.neto} delivery={t.delivery} />
+      {t.sin_forma > 0 && <div className="dl-warn">{t.sin_forma === 1 ? '1 pedido sin forma de pago: se cuenta' : `${t.sin_forma} pedidos sin forma de pago: se cuentan`} como efectivo.</div>}
+      <dl className="dl-totals dl-card">
+        <dt>Pedidos del turno</dt><dd>{t.pedidos}</dd>
+        <dt>Efectivo cobrado</dt><dd>{formatMoney(t.efectivo)}</dd>
+        {t.pos.map(p => <Fragment key={p.nombre}><dt className="dl-indent">POS · {p.nombre}</dt><dd>{formatMoney(p.monto)}</dd></Fragment>)}
+        <dt>Total POS</dt><dd>{formatMoney(t.pos_total)}</dd>
+        {t.otros > 0 && <><dt>Otros cobros</dt><dd>{formatMoney(t.otros)}</dd></>}
+        <dt>Tu delivery</dt><dd>{formatMoney(t.delivery)}</dd>
+        <dt className="dl-total">{t.neto >= 0 ? 'Entregás a la caja' : 'La caja te paga'}</dt>
+        <dd className={`dl-total ${t.neto >= 0 ? '' : 'dl-rojo'}`}>{formatMoney(Math.abs(t.neto))}</dd>
+      </dl>
+      {t.pos_total > 0 && <p className="dl-muted dl-center">El total POS debe coincidir con el reporte que imprime cada máquina.</p>}
+      <div className="dl-card dl-split">
+        <div><span>Ya rendido</span><b>{t.rendido.pedidos} {t.rendido.pedidos === 1 ? 'pedido' : 'pedidos'}</b>
+          <small>{t.rendido.pedidos ? (t.rendido.neto >= 0 ? `Entregaste ${formatMoney(t.rendido.neto)}` : `Te pagaron ${formatMoney(-t.rendido.neto)}`) : '—'}</small></div>
+        <div><span>Falta rendir</span><b>{t.pendiente.pedidos} {t.pendiente.pedidos === 1 ? 'pedido' : 'pedidos'}</b>
+          {t.pendiente.pedidos > 0
+            ? <strong className={t.pendiente.neto >= 0 ? 'dl-verde' : 'dl-rojo'}>{t.pendiente.neto >= 0 ? `Entregás ${formatMoney(t.pendiente.neto)}` : `Te pagan ${formatMoney(-t.pendiente.neto)}`}</strong>
+            : <small>Nada pendiente</small>}</div>
+      </div>
+    </section>
+  );
+}
+
 function Panel({ entregador, onLogout }) {
   const [data, setData] = useState(null);
   const [tab, setTab] = useState('mios');
@@ -224,11 +277,13 @@ function Panel({ entregador, onLogout }) {
       <nav className="dl-tabs">
         <button className={tab === 'mios' ? 'active' : ''} onClick={() => setTab('mios')}>Mis pedidos <em>{mios.length}</em></button>
         <button className={tab === 'libres' ? 'active' : ''} onClick={() => setTab('libres')}>Disponibles <em className={libres.length ? 'hot' : ''}>{libres.length}</em></button>
+        <button className={tab === 'totales' ? 'active' : ''} onClick={() => setTab('totales')}>Totales</button>
       </nav>
       <main className="dl-list">
         {error && <div className="dl-error">{error}</div>}
         {!data ? <p className="dl-empty">Cargando pedidos…</p>
           : !data.caja_abierta ? <div className="dl-empty"><b>No hay caja abierta</b><span>Los pedidos aparecen cuando se abre la caja.</span></div>
+          : tab === 'totales' ? <Totales totales={data.totales} />
           : lista.length === 0 ? <div className="dl-empty"><b>{tab === 'mios' ? 'No tenés pedidos asignados' : 'No hay pedidos disponibles'}</b>
               <span>{tab === 'mios' ? 'Tomá uno desde "Disponibles".' : 'Cuando entre un pedido sin entregador lo vas a ver acá.'}</span></div>
           : lista.map(p => <PedidoCard key={p.idpedido} pedido={p} formas={data.formas} busy={busy} onAsignar={setConfirmar} onForma={indicarForma} />)}

@@ -6,6 +6,7 @@ import { loginRateLimit, recordLoginFailure, clearLoginFailures } from '../middl
 import { auditar } from '../services/auditoria.js';
 import { avisarCambio } from '../services/eventos.js';
 import { restaurantInfo } from '../services/ticket-pdf.js';
+import { formaEfectivo } from '../services/rendicion-delivery.js';
 
 // Panel del entregador (/delivery): ingreso con usuario y PIN, pedidos DELIVERY de la caja abierta
 // (los suyos y los que nadie tomó), auto-asignación e indicación de la forma de pago (solo informativa).
@@ -76,6 +77,7 @@ router.get('/pedidos', route(async req => {
     WHERE d.fk_idpedido = ANY($1::int[]) AND d.estado<>'cancelado' ORDER BY d.iddetalle_pedido`, [ids])).rows : [];
   return {
     caja_abierta: true,
+    totales: await totalesEntregador(req.entregador.id, caja.fecha_apertura),
     formas: formas.rows,
     pedidos: pedidos.rows.map(p => {
       const saldo = p.estado_cuenta === 'abierta' ? Math.max(0, number(p.total_cuenta) - number(p.cobrado)) : 0;
@@ -90,6 +92,63 @@ router.get('/pedidos', route(async req => {
     })
   };
 }));
+
+// Totales del turno del entregador, con la misma cuenta que la Rendición: neto = efectivo cobrado − delivery.
+// Positivo: lo entrega a la caja (ya se quedó con su delivery). Negativo: la caja le paga la diferencia.
+// Pendientes de rendir: se cobra el saldo con la forma indicada (sin forma = efectivo, como propone la Rendición).
+// Ya rendidos: los cobros reales de la rendición (mismo CURRENT_TIMESTAMP que la rendición, misma transacción).
+async function totalesEntregador(entregadorId, desde) {
+  const base = `FROM pedido p JOIN cuenta cu ON cu.idcuenta=p.fk_idcuenta
+    WHERE p.tipo_entrega='DELIVERY' AND p.estado NOT IN ('abierto','cancelado') AND p.fecha_creado >= $1 AND p.fk_identregador_delivery=$2`;
+  const [formasRes, pendientes, rendidos] = await Promise.all([
+    pool.query('SELECT idforma_pago, nombre, usa_pos FROM forma_pago'),
+    pool.query(`SELECT p.idpedido, p.fk_idforma_pago_entrega, p.monto_delivery,
+        CASE WHEN cu.estado='abierta' THEN GREATEST(0, cu.total - cobrado_neto_cuenta(cu.idcuenta)) ELSE 0 END AS saldo,
+        EXISTS (SELECT 1 FROM pago_delivery_pedido pdp WHERE pdp.fk_idpedido=p.idpedido AND pdp.activo) AS delivery_ya_pagado
+      ${base} AND NOT EXISTS (SELECT 1 FROM rendicion_delivery_pedido r WHERE r.fk_idpedido=p.idpedido AND r.activo)`, [desde, entregadorId]),
+    pool.query(`SELECT p.idpedido, rp.delivery_pagado,
+        COALESCE(json_agg(json_build_object('forma', pg.fk_idforma_pago, 'importe', pg.importe)) FILTER (WHERE pg.idpago IS NOT NULL), '[]') AS pagos
+      ${base.replace('WHERE', `JOIN rendicion_delivery_pedido rp ON rp.fk_idpedido=p.idpedido AND rp.activo
+        JOIN rendicion_delivery rd ON rd.idrendicion_delivery=rp.fk_idrendicion_delivery AND rd.estado='activa'
+        LEFT JOIN pago pg ON pg.fk_idcuenta=p.fk_idcuenta AND pg.estado='aprobado' AND pg.fecha_creado=rd.fecha_creado
+        WHERE`)} GROUP BY p.idpedido, rp.delivery_pagado`, [desde, entregadorId])
+  ]);
+  let efectivoId = null;
+  try { efectivoId = await formaEfectivo(pool); } catch { /* sin forma Efectivo: lo no indicado igual cuenta como efectivo */ }
+  const formas = new Map(formasRes.rows.map(f => [f.idforma_pago, f]));
+  const parte = () => ({ pedidos: 0, efectivo: 0, pos: new Map(), otros: 0, delivery: 0 });
+  const sumar = (t, formaId, importe) => {
+    const forma = formas.get(formaId);
+    if (!importe) return;
+    if (!forma || formaId === efectivoId) t.efectivo += importe;
+    else if (forma.usa_pos) t.pos.set(forma.nombre, (t.pos.get(forma.nombre) || 0) + importe);
+    else t.otros += importe;
+  };
+  const pend = parte(), rend = parte();
+  let sinForma = 0;
+  for (const p of pendientes.rows) {
+    pend.pedidos += 1;
+    const saldo = number(p.saldo);
+    if (saldo > 0 && !p.fk_idforma_pago_entrega) sinForma += 1;
+    sumar(pend, p.fk_idforma_pago_entrega || efectivoId, saldo);
+    if (!p.delivery_ya_pagado) pend.delivery += number(p.monto_delivery);
+  }
+  for (const p of rendidos.rows) {
+    rend.pedidos += 1;
+    for (const pay of p.pagos) sumar(rend, pay.forma, number(pay.importe));
+    rend.delivery += number(p.delivery_pagado);
+  }
+  const resumen = t => ({ pedidos: t.pedidos, neto: t.efectivo - t.delivery });
+  const pos = new Map(pend.pos);
+  for (const [nombre, monto] of rend.pos) pos.set(nombre, (pos.get(nombre) || 0) + monto);
+  const efectivo = pend.efectivo + rend.efectivo, delivery = pend.delivery + rend.delivery;
+  const posLista = [...pos].map(([nombre, monto]) => ({ nombre, monto })).sort((a, b) => a.nombre.localeCompare(b.nombre));
+  return {
+    pedidos: pend.pedidos + rend.pedidos, efectivo, pos: posLista, pos_total: posLista.reduce((s, x) => s + x.monto, 0),
+    otros: pend.otros + rend.otros, delivery, neto: efectivo - delivery, sin_forma: sinForma,
+    rendido: resumen(rend), pendiente: resumen(pend)
+  };
+}
 
 async function transaccion(handler) {
   const c = await pool.connect();
