@@ -3,8 +3,10 @@ import { pool } from '../config/database.js';
 import { requireAuth, requireCurrentForm } from '../middleware/auth.js';
 import { operation, integer, id, fail } from '../services/pedidos.js';
 import { renderCajaTicket } from '../services/caja-ticket.js';
+import { sendPdf, ticketRoute } from '../services/ticket-pdf.js';
 import { auditar } from '../services/auditoria.js';
 import { deliveryPendienteDeCaja } from '../services/pagos-delivery.js';
+import { resumenPorUsuario } from '../services/caja-usuarios.js';
 
 const router = Router();
 const validDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value || '') && !Number.isNaN(Date.parse(`${value}T00:00:00Z`)) && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
@@ -28,8 +30,14 @@ const summarySql = `
     COALESCE((SELECT sum(a.monto_inicial) FROM caja_arqueo a WHERE a.fk_idcaja_gral=cg.idcaja_gral),0)
       + COALESCE((SELECT sum(CASE WHEN i.tipo_movimiento='ingreso' THEN i.monto_pago+i.monto_compra+i.monto_gasto+i.monto_vale ELSE -(i.monto_pago+i.monto_compra+i.monto_gasto+i.monto_vale) END) FROM caja_item i WHERE i.fk_idcaja_gral=cg.idcaja_gral),0) AS monto_esperado,
     (SELECT sum(a.monto_contado) FROM caja_arqueo a WHERE a.fk_idcaja_gral=cg.idcaja_gral) AS monto_contado,
-    (SELECT sum(a.diferencia) FROM caja_arqueo a WHERE a.fk_idcaja_gral=cg.idcaja_gral) AS diferencia
-  FROM caja_gral cg`;
+    (SELECT sum(a.diferencia) FROM caja_arqueo a WHERE a.fk_idcaja_gral=cg.idcaja_gral) AS diferencia,
+    -- Pedidos no anulados creados mientras la caja estuvo abierta: total sin delivery y delivery aparte.
+    pc.total_pedidos_sin_delivery, pc.total_delivery, pc.cantidad_pedidos
+  FROM caja_gral cg
+  CROSS JOIN LATERAL (SELECT COALESCE(sum(p.monto_total-p.monto_delivery),0) AS total_pedidos_sin_delivery,
+      COALESCE(sum(p.monto_delivery),0) AS total_delivery, count(*)::int AS cantidad_pedidos
+    FROM pedido p WHERE p.estado<>'cancelado' AND p.fecha_creado>=cg.fecha_apertura
+      AND (cg.fecha_cierre IS NULL OR p.fecha_creado<cg.fecha_cierre)) pc`;
 
 async function activeCash(client = pool) {
   // Forma de pago por defecto (configurable en Formas de pago): en ella se registran el saldo inicial y el arqueo.
@@ -96,7 +104,8 @@ router.get('/', formAccess, route(async (req) => {
   ]);
   const total = count.rows[0].total;
   // Delivery ya cobrado que todavía no se pagó al entregador: está en caja pero no es del local.
-  return { abierta: open.rows[0] || null, delivery_pendiente: open.rows[0] ? await deliveryPendienteDeCaja() : null, cerradas: closed.rows, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
+  return { abierta: open.rows[0] || null, delivery_pendiente: open.rows[0] ? await deliveryPendienteDeCaja() : null,
+    por_usuario: open.rows[0] ? await resumenPorUsuario(pool, open.rows[0].idcaja_gral) : null, cerradas: closed.rows, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
 }));
 
 router.get('/:id', formAccess, route(async (req) => {
@@ -205,19 +214,13 @@ async function cajaTicketData(cajaId) {
   return { caja, efectivoId: efectivo.idforma_pago, efectivoNombre: efectivo.nombre, arqueos, ingresos: group('ingreso'), egresos: group('egreso'), categorias: categorias.rows, productos: productos.rows, anulados: anulados.rows };
 }
 
-router.get('/:id/ticket.pdf', formAccess, async (req, res, next) => {
+ticketRoute(router,'/:id/ticket.pdf', formAccess, async (req, res, next) => {
   try {
     const cajaId = id(req.params.id);
     const data = await cajaTicketData(cajaId);
     if (!data) return res.status(404).json({ error: 'Caja cerrada no encontrada' });
     const pdf = await renderCajaTicket(data);
-    res.set({
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `inline; filename="cierre-caja-${cajaId}.pdf"`,
-      'Cache-Control': 'no-store',
-      'Content-Length': String(pdf.length)
-    });
-    res.send(pdf);
+    await sendPdf(res, pdf, `cierre-caja-${cajaId}.pdf`);
   } catch (error) { next(error); }
 });
 

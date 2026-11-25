@@ -33,6 +33,7 @@ CREATE SEQUENCE grupo_menu_id_seq;
 CREATE SEQUENCE unidad_medida_id_seq;
 CREATE SEQUENCE unidad_conversion_id_seq;
 CREATE SEQUENCE ingrediente_id_seq;
+CREATE SEQUENCE insumo_id_seq;
 CREATE SEQUENCE producto_menu_id_seq;
 CREATE SEQUENCE receta_id_seq;
 CREATE SEQUENCE proveedor_id_seq;
@@ -260,6 +261,26 @@ CREATE TABLE producto_menu_ingrediente (
   PRIMARY KEY (fk_idproducto_menu, fk_idingrediente)
 );
 
+-- Insumos: catálogo igual al de ingredientes; su lista por producto es informativa y solo lleva cantidad.
+CREATE TABLE insumo (
+  idinsumo integer NOT NULL DEFAULT nextval('insumo_id_seq'::regclass) PRIMARY KEY,
+  fecha_creado timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  creado_por text NOT NULL DEFAULT 'SISTEMA',
+  nombre varchar(120) NOT NULL UNIQUE,
+  fk_idunidad_medida integer NOT NULL REFERENCES unidad_medida(idunidad_medida),
+  stock_actual numeric(14,0) NOT NULL DEFAULT 0 CHECK (stock_actual >= 0), stock_minimo numeric(14,0) NOT NULL DEFAULT 0 CHECK (stock_minimo >= 0),
+  precio_compra numeric(14,0) NOT NULL DEFAULT 0 CHECK (precio_compra >= 0), precio_venta numeric(14,0) NOT NULL DEFAULT 0 CHECK (precio_venta >= 0), activo boolean NOT NULL DEFAULT true
+);
+
+CREATE TABLE producto_menu_insumo (
+  fk_idproducto_menu integer NOT NULL REFERENCES producto_menu(idproducto_menu) ON DELETE CASCADE,
+  fk_idinsumo integer NOT NULL REFERENCES insumo(idinsumo),
+  cantidad numeric(14,3) NOT NULL CHECK (cantidad > 0),
+  fecha_creado timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  creado_por text NOT NULL DEFAULT 'SISTEMA',
+  PRIMARY KEY (fk_idproducto_menu, fk_idinsumo)
+);
+
 CREATE TABLE proveedor (
   idproveedor integer NOT NULL DEFAULT nextval('proveedor_id_seq'::regclass) PRIMARY KEY,
   fecha_creado timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -314,17 +335,37 @@ CREATE TABLE forma_pago (
   es_egreso boolean NOT NULL DEFAULT false,
   orden smallint NOT NULL DEFAULT 0 CHECK (orden >= 0),
   activo boolean NOT NULL DEFAULT true,
-  es_default boolean NOT NULL DEFAULT false
+  es_default boolean NOT NULL DEFAULT false,
+  usa_pos boolean NOT NULL DEFAULT false
 );
 CREATE UNIQUE INDEX forma_pago_unica_default ON forma_pago (es_default) WHERE es_default;
+
+-- Caja y finanzas · Máquinas POS (catálogo; por ahora sin relación con otras tablas).
+CREATE SEQUENCE IF NOT EXISTS maquina_pos_id_seq;
+CREATE TABLE maquina_pos (
+  idmaquina_pos integer NOT NULL DEFAULT nextval('maquina_pos_id_seq'::regclass) PRIMARY KEY,
+  fecha_creado timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  creado_por text NOT NULL DEFAULT 'SISTEMA',
+  nombre varchar(80) NOT NULL CONSTRAINT maquina_pos_nombre_limpio CHECK (nombre <> '' AND nombre = btrim(nombre) AND nombre !~ '\s{2,}'),
+  numero varchar(40) NOT NULL CONSTRAINT maquina_pos_numero_limpio CHECK (numero <> '' AND numero = btrim(numero) AND numero !~ '\s{2,}'),
+  orden smallint NOT NULL DEFAULT 0 CHECK (orden >= 0),
+  activo boolean NOT NULL DEFAULT true
+);
+CREATE UNIQUE INDEX maquina_pos_nombre_unico ON maquina_pos (lower(nombre));
+CREATE UNIQUE INDEX maquina_pos_numero_unico ON maquina_pos (lower(numero));
 
 CREATE TABLE entregador_delivery (
   identregador_delivery integer NOT NULL DEFAULT nextval('entregador_delivery_id_seq'::regclass) PRIMARY KEY,
   fecha_creado timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
   creado_por text NOT NULL DEFAULT 'SISTEMA',
   nombre_completo varchar(120) NOT NULL,
-  telefono varchar(40), activo boolean NOT NULL DEFAULT true
+  telefono varchar(40), activo boolean NOT NULL DEFAULT true,
+  -- Acceso propio del entregador (opcional): usuario único sin mayúsculas y PIN de 4 números con hash bcrypt.
+  usuario varchar(50) CONSTRAINT entregador_delivery_usuario_limpio CHECK (usuario IS NULL OR (usuario <> '' AND usuario !~ '\s')),
+  password_hash varchar(255),
+  CONSTRAINT entregador_delivery_acceso_completo CHECK ((usuario IS NULL) = (password_hash IS NULL))
 );
+CREATE UNIQUE INDEX entregador_delivery_usuario_unico ON entregador_delivery (lower(usuario)) WHERE usuario IS NOT NULL;
 
 CREATE TABLE pedido (
   idpedido integer NOT NULL DEFAULT nextval('pedido_id_seq'::regclass) PRIMARY KEY,
@@ -2260,6 +2301,41 @@ SELECT v.desde_minuto, v.color FROM (VALUES (0, '#ffffff'), (10, '#fff09a'), (20
 WHERE NOT EXISTS (SELECT 1 FROM comanda_color)
 ON CONFLICT DO NOTHING;
 
+-- Configuración de la impresora de tickets: ancho del papel, saltos en blanco antes del corte e impresora de Windows.
+CREATE TABLE IF NOT EXISTS impresora_config (
+  idimpresora_config integer PRIMARY KEY DEFAULT 1 CHECK (idimpresora_config = 1),
+  fecha_creado timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  creado_por text NOT NULL DEFAULT 'SISTEMA',
+  fecha_modificado timestamp,
+  modificado_por text,
+  tamano_ticket integer NOT NULL DEFAULT 80 CHECK (tamano_ticket IN (58, 80)),
+  saltos_final integer NOT NULL DEFAULT 5 CHECK (saltos_final BETWEEN 0 AND 30),
+  nombre_impresora text,
+  imprime_comanda boolean NOT NULL DEFAULT false
+);
+INSERT INTO impresora_config (idimpresora_config) VALUES (1) ON CONFLICT DO NOTHING;
+
+-- Terminales: cada PC (nombre de equipo informado por el agente de impresión) con su impresora y papel.
+CREATE TABLE IF NOT EXISTS terminal (
+  idterminal serial PRIMARY KEY,
+  fecha_creado timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  creado_por text NOT NULL DEFAULT 'SISTEMA',
+  fecha_modificado timestamp,
+  modificado_por text,
+  equipo text NOT NULL,
+  nombre text NOT NULL,
+  nombre_impresora text,
+  tamano_ticket integer NOT NULL DEFAULT 80 CHECK (tamano_ticket IN (58, 80)),
+  saltos_final integer NOT NULL DEFAULT 5 CHECK (saltos_final BETWEEN 0 AND 30),
+  impresoras_detectadas text[] NOT NULL DEFAULT '{}',
+  version_agente text,
+  activo boolean NOT NULL DEFAULT true,
+  ultima_conexion timestamp,
+  ultimo_usuario text,
+  imprime_comanda boolean NOT NULL DEFAULT false,
+  CONSTRAINT terminal_equipo_unico UNIQUE (equipo)
+);
+
 -- Auditoría de acciones sensibles: quién, cuándo, desde qué IP, qué cambió (antes/después) y por qué.
 -- Solo se agregan filas; un trigger impide modificarlas o borrarlas. Compatible con PostgreSQL 9.5.
 CREATE TABLE IF NOT EXISTS auditoria (
@@ -2364,3 +2440,52 @@ CREATE TABLE IF NOT EXISTS pago_delivery_pedido (
 );
 -- Un pedido solo puede estar en un pago activo (al anular el pago, sus pedidos quedan libres).
 CREATE UNIQUE INDEX IF NOT EXISTS pago_delivery_pedido_unico ON pago_delivery_pedido (fk_idpedido) WHERE activo;
+
+-- Rendición del entregador: al final del turno se cobra cada pedido que llevó (efectivo, tarjeta, QR…)
+-- y se le paga su delivery en efectivo (pago_delivery + gasto "Pago a delivery"). El neto es lo que
+-- entrega en mano: efectivo cobrado − delivery (si es negativo, el local le paga la diferencia).
+-- Un pedido solo puede estar en una rendición activa. Compatible con PostgreSQL 9.5 e idempotente.
+CREATE SEQUENCE IF NOT EXISTS rendicion_delivery_id_seq;
+CREATE TABLE IF NOT EXISTS rendicion_delivery (
+  idrendicion_delivery integer NOT NULL DEFAULT nextval('rendicion_delivery_id_seq'::regclass) PRIMARY KEY,
+  fecha_creado timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  creado_por text NOT NULL DEFAULT 'SISTEMA',
+  fk_identregador_delivery integer NOT NULL REFERENCES entregador_delivery(identregador_delivery),
+  cantidad_pedidos integer NOT NULL CHECK (cantidad_pedidos > 0),
+  efectivo_cobrado numeric(14,0) NOT NULL DEFAULT 0 CHECK (efectivo_cobrado >= 0),
+  otros_cobrado numeric(14,0) NOT NULL DEFAULT 0 CHECK (otros_cobrado >= 0),
+  delivery_pagado numeric(14,0) NOT NULL DEFAULT 0 CHECK (delivery_pagado >= 0),
+  -- Positivo: lo entrega el entregador. Negativo: se lo paga el local.
+  neto numeric(14,0) NOT NULL,
+  -- Pago del delivery de esta rendición (NULL si no había delivery por pagar).
+  fk_idpago_delivery integer UNIQUE REFERENCES pago_delivery(idpago_delivery),
+  estado varchar(10) NOT NULL DEFAULT 'activa' CHECK (estado IN ('activa', 'anulada')),
+  fecha_anulado timestamp, anulado_por text, motivo_anulado text,
+  CONSTRAINT rendicion_delivery_neto_valido CHECK (neto = efectivo_cobrado - delivery_pagado),
+  CONSTRAINT rendicion_delivery_pago_valido CHECK ((delivery_pagado = 0) = (fk_idpago_delivery IS NULL)),
+  CONSTRAINT rendicion_delivery_anulacion_valida CHECK (
+    (estado = 'anulada' AND fecha_anulado IS NOT NULL AND anulado_por IS NOT NULL AND motivo_anulado IS NOT NULL) OR
+    (estado = 'activa' AND fecha_anulado IS NULL AND anulado_por IS NULL AND motivo_anulado IS NULL)
+  )
+);
+CREATE INDEX IF NOT EXISTS rendicion_delivery_entregador_idx ON rendicion_delivery (fk_identregador_delivery, fecha_creado DESC);
+
+CREATE TABLE IF NOT EXISTS rendicion_delivery_pedido (
+  fk_idrendicion_delivery integer NOT NULL REFERENCES rendicion_delivery(idrendicion_delivery),
+  fk_idpedido integer NOT NULL REFERENCES pedido(idpedido),
+  total_pedido numeric(14,0) NOT NULL CHECK (total_pedido >= 0),
+  -- Lo que el cliente ya había pagado antes (p. ej. transferencia o pago anticipado): no lo trae el entregador.
+  cobrado_antes numeric(14,0) NOT NULL DEFAULT 0 CHECK (cobrado_antes >= 0),
+  cobrado_efectivo numeric(14,0) NOT NULL DEFAULT 0 CHECK (cobrado_efectivo >= 0),
+  cobrado_otros numeric(14,0) NOT NULL DEFAULT 0 CHECK (cobrado_otros >= 0),
+  formas_cobro text,
+  -- Delivery que se le pagó en esta rendición (0 si ya se le había pagado antes o el pedido no tenía).
+  delivery_pagado numeric(14,0) NOT NULL DEFAULT 0 CHECK (delivery_pagado >= 0),
+  activo boolean NOT NULL DEFAULT true,
+  PRIMARY KEY (fk_idrendicion_delivery, fk_idpedido)
+);
+CREATE UNIQUE INDEX IF NOT EXISTS rendicion_delivery_pedido_unico ON rendicion_delivery_pedido (fk_idpedido) WHERE activo;
+
+-- Panel del entregador (/delivery): forma de pago que el entregador indica para el pedido.
+-- Es solo informativa (no mueve la caja); la Rendición la propone como forma de cobro.
+ALTER TABLE pedido ADD COLUMN fk_idforma_pago_entrega integer REFERENCES forma_pago(idforma_pago);

@@ -1,12 +1,12 @@
 import { Router } from 'express';
 import bcrypt from 'bcryptjs';
 import { pool } from '../config/database.js';
-import { formDefinitions, permissionCode } from '../config/menu.js';
+import { formDefinitions, specialPermissions, permissionCode } from '../config/menu.js';
 import { requireAuth, requirePermission } from '../middleware/auth.js';
 import { auditar, cambios } from '../services/auditoria.js';
 
 const router = Router();
-const knownCodes = new Set(formDefinitions.map(form => form.code));
+const knownCodes = new Set([...formDefinitions, ...specialPermissions].map(form => form.code));
 const managementCodes = ['usuarios', 'roles', 'permisos'].map(permissionCode);
 const route = handler => async (req, res, next) => {
   try { const result = await handler(req); res.json(result); }

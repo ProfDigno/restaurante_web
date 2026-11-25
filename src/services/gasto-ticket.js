@@ -1,8 +1,8 @@
-import { writer, renderTicket, money, dateTime, dateOnly, muted, danger, MARGIN } from './ticket-pdf.js';
+import { writer, renderTicket, money, dateTime, dateOnly, muted, danger } from './ticket-pdf.js';
 
-// Comprobante de gasto en papel de 80 mm.
+// Comprobante de gasto en papel de 58 u 80 mm.
 function layout(doc, { gasto, restaurante }, printedAt) {
-  const { state, text, pair, rule, space, header, signature } = writer(doc);
+  const { state, text, pair, rule, space, header, signature, end } = writer(doc);
   header(restaurante);
   text('COMPROBANTE DE GASTO', { size: 14, bold: true, align: 'center', gap: 1 });
   text(`GASTO #${gasto.idgasto} · COMPROBANTE NO FISCAL`, { size: 7, align: 'center', color: muted, gap: 6 });
@@ -29,7 +29,7 @@ function layout(doc, { gasto, restaurante }, printedAt) {
   }
   pair('Impreso', dateTime(printedAt));
   signature('Firma / Recibí conforme');
-  return state.y + MARGIN;
+  return end();
 }
 
 export function renderGastoTicket(data, printedAt = new Date()) {

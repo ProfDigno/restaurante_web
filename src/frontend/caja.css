@@ -24,4 +24,19 @@
 .cash-section-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 8px; }
 .cash-section-head h3 { margin: 0; }
 /* Aviso: delivery cobrado que todavía no se pagó al entregador. */
+.cash-by-user { margin-top: 18px; display: grid; gap: 8px; }
+.cash-by-user h4 { margin: 0; font-size: 15px; color: #20342c; }
+.cash-by-user tfoot td { border-top: 2px solid #d9e2dd; background: #f6f8f7; }
+.cash-by-user td small { display: block; color: #6b7c74; font-size: 11px; }
+.cash-by-user-empty { margin: 0; color: #6b7c74; font-size: 13px; }
+.cash-by-user-note { color: #6b7c74; font-size: 11px; }
 .cash-delivery-notice { margin-top: 12px; background: #fff6e8; border: 1px solid #f1d29c; color: #6d4c12; }
+
+/* Totales de pedidos de la caja: sin delivery y delivery aparte. */
+.cash-stats-group { display: grid; gap: 10px; }
+.cash-stats-orders { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.cash-stats .orders { background: #eef3fb; }
+.cash-stats .orders strong { color: #2a5f9e; }
+.cash-stats .delivery { background: #fdf5e6; }
+.cash-stats .delivery strong { color: #9a6412; }
+.cash-stats small { font-size: 12px; color: #6b7c75; }

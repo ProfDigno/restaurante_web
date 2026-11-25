@@ -1,3 +1,4 @@
+import { pool } from './config/database.js';
 import express from 'express';
 import cookieParser from 'cookie-parser';
 import path from 'node:path';
@@ -16,6 +17,7 @@ import entregadorDeliveryRoutes from './routes/entregador-delivery.routes.js';
 import unidadMedidaRoutes from './routes/unidad-medida.routes.js';
 import unidadConversionRoutes from './routes/unidad-conversion.routes.js';
 import ingredienteRoutes from './routes/ingrediente.routes.js';
+import insumoRoutes from './routes/insumo.routes.js';
 import mesaConfigRoutes from './routes/mesa-config.routes.js';
 import ubicacionMesaRoutes from './routes/ubicacion-mesa.routes.js';
 import pedidoRoutes from './routes/pedido.routes.js';
@@ -34,12 +36,17 @@ import compraRoutes from './routes/compra.routes.js';
 import facturaRoutes from './routes/factura.routes.js';
 import datosRestauranteRoutes from './routes/datos-restaurante.routes.js';
 import comandaConfigRoutes from './routes/comanda-config.routes.js';
+import impresoraConfigRoutes from './routes/impresora-config.routes.js';
+import terminalesRoutes from './routes/terminales.routes.js';
+import { contextoTerminal } from './services/impresora-config.js';
 import securityRoutes from './routes/security.routes.js';
 import auditoriaRoutes from './routes/auditoria.routes.js';
 import kpiRentabilidadRoutes from './routes/kpi-rentabilidad.routes.js';
 import kpiValeRoutes from './routes/kpi-vale.routes.js';
 import cargoPersonalRoutes from './routes/cargo-personal.routes.js';
+import maquinaPosRoutes from './routes/maquina-pos.routes.js';
 import pagoDeliveryRoutes from './routes/pago-delivery.routes.js';
+import deliveryAppRoutes from './routes/delivery-app.routes.js';
 import { requireAuth, requirePermission } from './middleware/auth.js';
 import { notFound, errorHandler } from './middleware/error.js';
 import { sameOriginWrites } from './middleware/security.js';
@@ -56,9 +63,20 @@ const uploadsDir = path.resolve(__dirname, '../uploads');
 app.use(express.json());
 app.use(cookieParser());
 app.use('/api', sameOriginWrites);
+// ?terminal=ID: los tickets salen con el papel (58/80 mm, saltos) de la PC que los pide.
+app.use('/api', contextoTerminal);
 app.get('/api/health', (req, res) => res.json({ ok: true, service: 'restaurante-web', version: appVersion }));
+// Público (también en la pantalla de ingreso): solo el nombre comercial, para el título de la pestaña.
+app.get('/api/marca', async (req, res, next) => {
+  try {
+    const { rows } = await pool.query('SELECT nombre_fantasia, razon_social FROM datos_restaurante WHERE iddatos_restaurante=1').catch(() => ({ rows: [] }));
+    res.json({ nombre: String(rows[0]?.nombre_fantasia || rows[0]?.razon_social || '').trim() });
+  } catch (error) { next(error); }
+});
 app.use('/uploads', express.static(uploadsDir, { maxAge: '1h' }));
 app.use('/api/auth', authRoutes);
+// Panel del entregador (/delivery): sesión propia con usuario y PIN, independiente de la del sistema.
+app.use('/api/delivery-app', deliveryAppRoutes);
 app.use('/api/menu', menuRoutes);
 app.use('/api/mesas', requireAuth, (req, res, next) =>
   req.path.startsWith('/historial')
@@ -72,9 +90,10 @@ app.use('/api/zonas-clientes', requireAuth, requirePermission('zonas', ['cliente
 app.use('/api/clientes', requireAuth, (req, res, next) =>
   req.method === 'POST' && req.user.permisos.includes('FORM_PEDIDOS') ? next() : requirePermission('clientes')(req, res, next), clienteRoutes);
 app.use('/api/entregadores-delivery', requireAuth, requirePermission('delivery'), entregadorDeliveryRoutes);
-app.use('/api/unidades-medida', requireAuth, requirePermission('unidades-medida', ['ingredientes', 'conversiones-unidad']), unidadMedidaRoutes);
+app.use('/api/unidades-medida', requireAuth, requirePermission('unidades-medida', ['ingredientes', 'insumos', 'conversiones-unidad']), unidadMedidaRoutes);
 app.use('/api/unidades-conversion', requireAuth, requirePermission('conversiones-unidad'), unidadConversionRoutes);
 app.use('/api/ingredientes', requireAuth, requirePermission('ingredientes', ['menu']), ingredienteRoutes);
+app.use('/api/insumos', requireAuth, requirePermission('insumos', ['menu']), insumoRoutes);
 app.use('/api/mesas-config', requireAuth, requirePermission('mesas-config'), mesaConfigRoutes);
 app.use('/api/ubicaciones-mesa', requireAuth, requirePermission('ubicaciones-mesa', ['mesas-config']), ubicacionMesaRoutes);
 app.use('/api/pedidos', requireAuth, requirePermission('pedidos'), pedidoRoutes);
@@ -82,6 +101,7 @@ app.use('/api/comandas', requireAuth, requirePermission('comanda'), comandaRoute
 app.use('/api/kpi-pedidos', requireAuth, requirePermission('kpi-pedidos'), kpiPedidoRoutes);
 app.use('/api/kpi-rentabilidad', requireAuth, requirePermission('kpi-rentabilidad'), kpiRentabilidadRoutes);
 app.use('/api/formas-pago', requireAuth, requirePermission('formas-pago'), formaPagoRoutes);
+app.use('/api/maquinas-pos', requireAuth, requirePermission('maquinas-pos'), maquinaPosRoutes);
 app.use('/api/cajas', requireAuth, (req, res, next) =>
   req.path === '/estado' || req.path === '/abrir' ? next() : requirePermission('caja')(req, res, next), cajaRoutes);
 app.use('/api/gasto-tipos', requireAuth, requirePermission('gasto-tipos'), gastoTipoRoutes);
@@ -99,6 +119,8 @@ app.use('/api/compras', requireAuth, requirePermission('compras'), compraRoutes)
 app.use('/api/facturas', requireAuth, requirePermission('facturas'), facturaRoutes);
 app.use('/api/datos-restaurante', requireAuth, requirePermission('datos-restaurante'), datosRestauranteRoutes);
 app.use('/api/comanda-config', requireAuth, requirePermission('configuracion-comanda'), comandaConfigRoutes);
+app.use('/api/terminales', requireAuth, terminalesRoutes);
+app.use('/api/impresora-config', requireAuth, requirePermission('configuracion-impresora'), impresoraConfigRoutes);
 app.use('/api/auditoria', requireAuth, requirePermission('auditoria'), auditoriaRoutes);
 app.use('/api', securityRoutes);
 

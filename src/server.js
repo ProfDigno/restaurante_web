@@ -26,7 +26,7 @@ if (isDevelopment) {
     server: { middlewareMode: true },
     appType: 'spa'
   });
-  app.get(['/comanda', '/pedido', '/mesa'], async (req, res, next) => {
+  app.get(['/comanda', '/pedido', '/mesa', '/delivery'], async (req, res, next) => {
     try {
       const html = await readFile(path.join(frontendRoot, 'index.html'), 'utf8');
       res.type('html').send(await vite.transformIndexHtml(req.originalUrl, html));

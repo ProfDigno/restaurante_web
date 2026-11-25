@@ -9,6 +9,7 @@ export const ACCIONES = {
   PEDIDO_PRECIO_MANUAL: 'Precio manual en pedido',
   PRODUCTO_MODIFICADO: 'Precio o stock de producto',
   INGREDIENTE_MODIFICADO: 'Precio o stock de ingrediente',
+  INSUMO_MODIFICADO: 'Precio o stock de insumo',
   COMPRA_ANULADA: 'Compra anulada',
   GASTO_ANULADO: 'Gasto anulado',
   VALE_ANULADO: 'Vale anulado',
@@ -21,7 +22,10 @@ export const ACCIONES = {
   PERMISO_MODIFICADO: 'Permiso modificado',
   PAGO_DELIVERY_ANULADO: 'Pago a delivery anulado',
   PAGO_DELIVERY_SIN_CAJA: 'Delivery marcado como pagado sin caja',
-  ENTREGADOR_ASIGNADO: 'Entregador asignado a pedido'
+  ENTREGADOR_ASIGNADO: 'Entregador asignado a pedido',
+  PEDIDO_FORMA_PAGO_ENTREGA: 'Forma de pago indicada por el entregador',
+  RENDICION_DELIVERY: 'Rendición de entregador',
+  RENDICION_DELIVERY_ANULADA: 'Rendición de entregador anulada'
 };
 
 export async function auditar(c, user, { accion, entidad, id = null, antes = null, despues = null, motivo = null }) {

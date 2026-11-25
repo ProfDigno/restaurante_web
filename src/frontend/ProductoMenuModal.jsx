@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react';
 import MoneyInput from './MoneyInput.jsx';
+import ProductoInsumos, { validSupplyQuantity } from './ProductoInsumos.jsx';
+import { api } from './pedidos-api.js';
 import { normalizeMoneyValue } from './money-input.js';
 import { formatMoney } from './formatters.js';
 
@@ -31,6 +33,9 @@ export default function ProductoMenuModal({ item, options, onClose, onSave, savi
   const [ingredientSearch, setIngredientSearch] = useState('');
   const [ingredientOptions, setIngredientOptions] = useState([]);
   const [searchLoading, setSearchLoading] = useState(false);
+  const [supplies, setSupplies] = useState([]);
+  const [supplyLoading, setSupplyLoading] = useState(editing);
+  const [supplyLoadError, setSupplyLoadError] = useState('');
   const [error, setError] = useState('');
 
   useEffect(() => {
@@ -44,6 +49,17 @@ export default function ProductoMenuModal({ item, options, onClose, onSave, savi
       })
       .catch((reason) => { if (reason.name !== 'AbortError') setIngredientLoadError(reason.message); })
       .finally(() => { if (!controller.signal.aborted) setIngredientLoading(false); });
+    return () => controller.abort();
+  }, [editing, item?.idproducto_menu]);
+
+  useEffect(() => {
+    if (!editing) return;
+    const controller = new AbortController();
+    api(`/api/productos-menu/${item.idproducto_menu}/insumos`, { signal: controller.signal })
+      // Number quita los ceros de numeric(14,3): "1.500" se muestra "1.5".
+      .then((data) => setSupplies(data.items.map((supply) => ({ ...supply, cantidad: String(Number(supply.cantidad)) }))))
+      .catch((reason) => { if (!controller.signal.aborted) setSupplyLoadError(reason.message); })
+      .finally(() => { if (!controller.signal.aborted) setSupplyLoading(false); });
     return () => controller.abort();
   }, [editing, item?.idproducto_menu]);
 
@@ -101,13 +117,22 @@ export default function ProductoMenuModal({ item, options, onClose, onSave, savi
       setError('Cada cantidad debe ser un número entero mayor a cero');
       return;
     }
+    if (editing && supplies.some((supply) => !validSupplyQuantity(supply.cantidad))) {
+      setTab('supplies');
+      setError('Cada cantidad de insumo debe ser mayor a cero, con hasta 11 enteros y 3 decimales');
+      return;
+    }
     try {
       await onSave({ ...form,
         fk_idcategoria_menu: Number(form.fk_idcategoria_menu),
         fk_idgrupo_menu: Number(form.fk_idgrupo_menu),
         fk_idunidad_menu: Number(form.fk_idunidad_menu),
         ...Object.fromEntries(numericFields.map((key) => [key, parsedInteger(form[key])])),
-        ...(editing ? { ingredientes: ingredients.map((ingredient) => ({ idingrediente: ingredient.idingrediente, cantidad: String(ingredient.cantidad).trim() })) } : {})
+        ...(editing ? {
+          ingredientes: ingredients.map((ingredient) => ({ idingrediente: ingredient.idingrediente, cantidad: String(ingredient.cantidad).trim() })),
+          // Si no cargaron no se mandan: el servidor conserva los que tenía el producto.
+          ...(supplyLoadError ? {} : { insumos: supplies.map((supply) => ({ idinsumo: supply.idinsumo, cantidad: String(supply.cantidad).trim() })) })
+        } : {})
       });
     } catch (reason) { setError(reason.message); }
   };
@@ -119,6 +144,7 @@ export default function ProductoMenuModal({ item, options, onClose, onSave, savi
       <div className="product-modal-tabs" role="tablist" aria-label="Secciones del producto">
         <button type="button" role="tab" id="product-data-tab" aria-controls="product-data-panel" aria-selected={tab === 'data'} className={tab === 'data' ? 'active' : ''} onClick={() => setTab('data')}>Datos</button>
         <button type="button" role="tab" id="product-ingredients-tab" aria-controls="product-ingredients-panel" aria-selected={tab === 'ingredients'} className={tab === 'ingredients' ? 'active' : ''} disabled={!editing} title={!editing ? 'Guardá el producto antes de agregar ingredientes' : undefined} onClick={() => setTab('ingredients')}>Ingredientes{editing ? ` (${ingredients.length})` : ''}</button>
+        <button type="button" role="tab" id="product-supplies-tab" aria-controls="product-supplies-panel" aria-selected={tab === 'supplies'} className={tab === 'supplies' ? 'active' : ''} disabled={!editing} title={!editing ? 'Guardá el producto antes de agregar insumos' : undefined} onClick={() => setTab('supplies')}>Insumos{editing && !supplyLoadError ? ` (${supplies.length})` : ''}</button>
       </div>
       <form className="modal-form" onSubmit={submit} noValidate>
         {tab === 'data' && <div id="product-data-panel" role="tabpanel" aria-labelledby="product-data-tab" className="product-tab-panel">
@@ -135,8 +161,13 @@ export default function ProductoMenuModal({ item, options, onClose, onSave, savi
             <div className="product-ingredient-list"><h3>Ingredientes del producto</h3>{ingredients.length ? ingredients.map((ingredient) => <div className="product-ingredient-row" key={ingredient.idingrediente}><div className="ingredient-name"><strong>{ingredient.nombre}</strong>{!ingredient.activo && <small>Inactivo</small>}</div><label className="ingredient-quantity">Cantidad<input type="number" min="1" step="1" value={ingredient.cantidad} onChange={(event) => updateIngredient(ingredient.idingrediente, event.target.value)} /></label><span className="ingredient-unit">{ingredient.unidad_codigo}</span><div className="ingredient-price"><span>Precio de venta</span><strong>{formatMoney(ingredient.precio_venta)}</strong></div><button type="button" className="edit-button ingredient-remove" onClick={() => setIngredients((current) => current.filter((selected) => selected.idingrediente !== ingredient.idingrediente))} aria-label={`Quitar ${ingredient.nombre}`}>Quitar</button></div>) : <p className="muted">Todavía no hay ingredientes agregados.</p>}</div>
           </>}
         </div>}
+        {tab === 'supplies' && <div id="product-supplies-panel" role="tabpanel" aria-labelledby="product-supplies-tab" className="product-tab-panel">
+          <p className="product-ingredients-help">Insumos de referencia para este producto. No se descuentan del stock al vender.</p>
+          {supplyLoading ? <p>Cargando insumos…</p> : supplyLoadError ? <div className="alert error">{supplyLoadError}</div> : <ProductoInsumos items={supplies} setItems={setSupplies} />}
+        </div>}
+        {tab !== 'supplies' && supplyLoadError && <div className="alert error">No se pudieron cargar los insumos ({supplyLoadError}). Si guardás, el producto conserva los que tenía.</div>}
         {error && <div className="alert error" role="alert">{error}</div>}
-        <div className="modal-actions"><button type="button" className="secondary" onClick={onClose}>Cancelar</button><button type="submit" className="primary" disabled={saving || ingredientLoading || Boolean(ingredientLoadError)}>{saving ? 'Guardando…' : 'Guardar producto'}</button></div>
+        <div className="modal-actions"><button type="button" className="secondary" onClick={onClose}>Cancelar</button><button type="submit" className="primary" disabled={saving || ingredientLoading || supplyLoading || Boolean(ingredientLoadError)}>{saving ? 'Guardando…' : 'Guardar producto'}</button></div>
       </form>
     </div>
   </div>;

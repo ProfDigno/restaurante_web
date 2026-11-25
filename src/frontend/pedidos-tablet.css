@@ -1,0 +1,202 @@
+/* Pedidos en tablet. Todo depende de .is-tablet / .tablet-order (useTablet.js): no afecta a PC ni celular.
+   Se usa el ancho y no la orientación, porque el teclado en pantalla hace pasar una tablet vertical por horizontal. */
+
+/* Dentro del sistema: menú deslizable con ☰ y pedido a pantalla completa. */
+.app-shell.tablet-order { height: 100vh; height: 100dvh; min-height: 0; overflow: hidden; }
+.app-shell.tablet-order .sidebar-wrap { position: fixed; z-index: 20; top: 0; bottom: 0; left: 0; transform: translateX(-100%); visibility: hidden; transition: transform .22s ease, visibility .22s; }
+.app-shell.tablet-order .sidebar-wrap.open { transform: translateX(0); visibility: visible; }
+.app-shell.tablet-order .sidebar { height: 100%; min-height: 0; }
+.app-shell.tablet-order .side-nav { min-height: 0; }
+.app-shell.tablet-order .mobile-overlay.show { display: block; position: fixed; z-index: 19; inset: 0; background: #17201f80; }
+.app-shell.tablet-order .content { display: flex; flex-direction: column; min-height: 0; }
+.app-shell.tablet-order .topbar { flex: none; height: auto; min-height: 52px; padding: 4px 10px; gap: 4px 10px; }
+.app-shell.tablet-order .topbar h1 { font-size: 20px; }
+.app-shell.tablet-order .mobile-menu { display: grid; place-items: center; flex: none; width: 44px; height: 44px; margin: 0; font-size: 22px; }
+.app-shell.tablet-order .topbar .topbar-slot button, .app-shell.tablet-order .topbar .topbar-slot select { height: 44px; min-height: 44px; }
+.app-shell.tablet-order .topbar .topbar-slot input { font-size: 16px; }
+.app-shell.tablet-order .page-content { flex: 1; width: 100%; max-width: none; min-height: 0; padding: 8px; overflow: hidden; }
+
+/* Base: ocupa el alto visible. Si no alcanza (teclado, cliente rápido abierto), se desplaza la página. */
+.pos-window.pos-tablet { height: 100vh; height: 100dvh; padding: 8px; }
+.orders-page.is-tablet { display: flex; flex-direction: column; gap: 8px; height: 100%; min-height: 0; overflow-x: hidden; overflow-y: auto; }
+.orders-page.is-tablet > * { flex: none; }
+.orders-page.is-tablet button, .orders-page.is-tablet summary, .orders-page.is-tablet .ticket-link { min-height: 44px; touch-action: manipulation; }
+/* Menos de 16 px hace que el iPad amplíe la pantalla al enfocar el campo. */
+.orders-page.is-tablet input, .orders-page.is-tablet select, .orders-page.is-tablet textarea { font-size: 16px; }
+.orders-page.is-tablet summary { line-height: 44px; }
+.orders-page.is-tablet .primary, .orders-page.is-tablet .secondary { font-size: 14px; }
+
+/* Listado */
+.orders-page.is-tablet > .catalog-toolbar { margin: 0; }
+.orders-page.is-tablet > .catalog-table-wrap { flex: 1 1 0; min-height: 160px; overflow: auto; }
+.orders-page.is-tablet > .catalog-table-wrap thead th { position: sticky; top: 0; z-index: 1; background: #f4f7f5; }
+.orders-page.is-tablet > .catalog-table-wrap th, .orders-page.is-tablet > .catalog-table-wrap td { padding: 8px; }
+.orders-page.is-tablet > .catalog-table-wrap th:first-child, .orders-page.is-tablet > .catalog-table-wrap td:first-child { display: table-cell; }
+.orders-page.is-tablet .order-list-actions .order-action-icon { width: 44px; min-width: 44px; height: 44px; }
+
+/* Encabezado del pedido */
+.orders-page.is-tablet .order-header { gap: 4px; padding: 8px 10px; }
+.orders-page.is-tablet .order-header-controls { flex-wrap: wrap; gap: 8px; }
+.orders-page.is-tablet .order-header .delivery-type-field { width: auto; min-width: 310px; gap: 4px; }
+.orders-page.is-tablet .order-header label { gap: 4px; }
+.orders-page.is-tablet .order-header .delivery-option { min-height: 44px; font-size: 12px; }
+.orders-page.is-tablet .order-header input, .orders-page.is-tablet .order-header select { height: 44px; padding-top: 6px; padding-bottom: 6px; }
+.orders-page.is-tablet .order-header .order-fields .table-number-input { width: 110px; }
+.orders-page.is-tablet .order-header .client-picker { flex: 1 1 340px; flex-wrap: nowrap; min-width: 0; gap: 8px; }
+.orders-page.is-tablet .order-header .client-picker label { flex: 1 1 120px; min-width: 110px; }
+.orders-page.is-tablet .order-header .client-picker .new-client-button,
+.orders-page.is-tablet .order-header .edit-client-button { flex: none; width: 44px; height: 44px; padding: 0; }
+.orders-page.is-tablet .order-header-actions { width: auto; margin-left: auto; }
+.orders-page.is-tablet .quick-client { margin: 0; padding: 0; }
+.orders-page.is-tablet .quick-client[open] > summary { margin: 0; }
+.orders-page.is-tablet .quick-client-form { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 18px 8px; }
+.orders-page.is-tablet .quick-client-form .ruc-lookup-button { flex-basis: 44px; width: 44px; }
+.orders-page.is-tablet .delivery-info .zone-change { height: 40px; margin: 4px 0 0 8px; }
+
+/* Dos columnas: productos y pedido siempre a la vista */
+.orders-page.is-tablet .order-editor-layout { display: flex; flex: 1 0 340px; height: auto; min-height: 340px; }
+.orders-page.is-tablet .order-workspace { flex: 1; min-width: 0; height: auto; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr); grid-template-rows: minmax(0, 1fr); gap: 8px; }
+.orders-page.is-tablet .order-picker { height: auto; min-height: 0; padding: 8px; gap: 4px; overflow: hidden; }
+.orders-page.is-tablet .product-picker { flex: 1; overflow-y: auto; overscroll-behavior: contain; }
+.orders-page.is-tablet .order-picker .category-option, .orders-page.is-tablet .order-picker .unit-option { min-width: 44px; min-height: 44px; padding: 6px 12px; font-size: 13px; touch-action: manipulation; }
+.orders-page.is-tablet .product-grid { grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); max-height: none; }
+.orders-page.is-tablet .product-card { min-height: 104px; }
+.orders-page.is-tablet .product-card-main { padding: 8px 8px 48px; }
+.orders-page.is-tablet .product-card-main strong { font-size: 13px; }
+.orders-page.is-tablet .product-card-price { bottom: 17px; pointer-events: none; }
+.orders-page.is-tablet .product-card-edit { right: 2px; bottom: 2px; min-width: 44px; padding: 3px 5px; }
+.orders-page.is-tablet .product-picker .catalog-footer button { min-width: 44px; }
+
+/* Detalle: cada línea es una grilla, para que entren nombre y botones de 44 px sin cortarse */
+.orders-page.is-tablet .order-side { height: auto; min-height: 0; margin: 0; gap: 8px; overflow-y: auto; }
+.orders-page.is-tablet .order-side .order-detail { flex: 1 1 0; height: auto; min-height: 120px; max-height: none; margin: 0; padding: 8px 10px; overflow-y: auto; }
+.orders-page.is-tablet .order-side .order-detail h3 { margin: 0 0 4px; font-size: 14px; }
+.orders-page.is-tablet .order-side .order-detail .catalog-table-wrap { flex: 1 0 64px; height: auto; min-height: 64px; max-height: none; overflow-x: hidden; overflow-y: auto; }
+.orders-page.is-tablet .order-detail > :not(.catalog-table-wrap) { flex-shrink: 0; }
+.orders-page.is-tablet .order-detail .catalog-table, .orders-page.is-tablet .order-detail tbody { display: block; width: 100%; min-width: 0; }
+.orders-page.is-tablet .order-detail thead { display: none; }
+.orders-page.is-tablet .order-detail tbody tr { display: grid; grid-template-columns: minmax(0, 1fr) auto 44px; grid-template-areas: "name name remove" "qty total remove"; align-items: center; column-gap: 4px; padding: 4px 0; border-bottom: 1px solid #edf0ed; }
+.orders-page.is-tablet .order-side .order-detail .catalog-table tbody tr > td:nth-child(n) { display: block; width: auto; min-width: 0; padding: 0; border: 0; background: transparent; box-shadow: none; }
+.orders-page.is-tablet .order-side .order-detail .catalog-table tbody tr > td:nth-child(1) { grid-area: name; padding-left: 4px; }
+.orders-page.is-tablet .order-side .order-detail .catalog-table tbody tr > td:nth-child(2) { grid-area: qty; justify-self: start; }
+.orders-page.is-tablet .order-side .order-detail .catalog-table tbody tr > td:nth-child(3) { display: none; }
+.orders-page.is-tablet .order-side .order-detail .catalog-table tbody tr > td:nth-child(4) { grid-area: total; white-space: nowrap; }
+.orders-page.is-tablet .order-side .order-detail .catalog-table tbody tr > td:nth-child(5) { grid-area: remove; }
+.orders-page.is-tablet .order-side .order-detail .catalog-table tbody tr > td[colspan] { grid-column: 1 / -1; padding: 12px 4px; }
+.orders-page.is-tablet .order-detail .detail-select { min-height: 44px; }
+.orders-page.is-tablet .order-detail td:first-child small { display: none; }
+.orders-page.is-tablet .order-detail .quantity-controls { justify-content: flex-start; gap: 2px; }
+.orders-page.is-tablet .order-detail .quantity-controls button { width: 44px; height: 44px; padding: 0; font-size: 20px; }
+.orders-page.is-tablet .order-detail .quantity-controls span { min-width: 22px; text-align: center; }
+.orders-page.is-tablet .order-side .order-detail .remove-line { width: 44px; height: 44px; font-size: 18px; }
+.orders-page.is-tablet .order-detail tr.selected-detail-row { background: #edf5f0; }
+.orders-page.is-tablet .order-detail tr.ingredient-added-row { background: #f1eafb; }
+.orders-page.is-tablet .order-detail tr.ingredient-removed-row { background: #fff6d8; }
+.orders-page.is-tablet .order-detail tr.observation-row { background: #eef6fd; }
+.orders-page.is-tablet .order-detail tr.selected-ingredient-row { box-shadow: inset 0 2px #8eaaa0, inset 0 -2px #8eaaa0; }
+
+/* Agregar, quitar y observación */
+.orders-page.is-tablet .ingredient-modifier-toolbar { flex-wrap: wrap; gap: 4px; padding-top: 4px; }
+.orders-page.is-tablet .ingredient-modifier-toolbar > span { flex: 1 1 100%; }
+.orders-page.is-tablet .ingredient-modifier-toolbar > div { flex: 1 1 100%; }
+.orders-page.is-tablet .ingredient-modifier-toolbar button { flex: 1 1 0; min-width: 44px; padding: 5px 2px; font-size: 11px; }
+.orders-page.is-tablet .ingredient-modifier-picker { max-height: 150px; }
+.orders-page.is-tablet .observation-editor { grid-template-columns: minmax(0, 1fr); }
+.orders-page.is-tablet .observation-editor input { width: 100%; height: 44px; }
+
+/* Totales y Guardar */
+.orders-page.is-tablet .order-side .order-checkout { flex: none; margin: 0; padding: 4px 10px 8px; gap: 4px; }
+.orders-page.is-tablet .checkout-more > summary { line-height: 18px; padding: 13px 0; }
+.orders-page.is-tablet .checkout-more[open] > summary { margin: 0; }
+.orders-page.is-tablet .order-side .checkout-editor { max-height: 24vh; max-height: min(24dvh, 280px); overflow-y: auto; align-items: start; }
+.orders-page.is-tablet .checkout-editor .order-fields, .orders-page.is-tablet .advance-payment-fields { grid-template-columns: minmax(0, 1fr); }
+.orders-page.is-tablet .order-side .checkout-summary.is-new { display: flex; flex-direction: column; align-items: stretch; }
+.orders-page.is-tablet .order-side .checkout-summary.is-new .order-actions .primary { flex: 1 1 100%; min-width: 0; min-height: 48px; font-size: 16px; }
+.orders-page.is-tablet .checkout-summary .order-actions { gap: 6px; }
+.orders-page.is-tablet .order-side .checkout-summary .cancel-order-button { min-width: 0; padding: 8px 12px; }
+
+/* Horizontal: una línea por producto cuando hay ancho */
+@media (min-width: 1180px) {
+  .orders-page.is-tablet .order-detail tbody tr { grid-template-columns: minmax(0, 1fr) auto minmax(72px, auto) 44px; grid-template-areas: "name qty total remove"; }
+}
+
+/* Vertical: las dos columnas más parejas */
+@media (max-width: 899px) {
+  .orders-page.is-tablet .order-workspace { grid-template-columns: minmax(0, 1.15fr) minmax(0, 1fr); }
+  .orders-page.is-tablet .order-header .client-picker { flex-basis: 100%; order: 1; }
+  .orders-page.is-tablet .quick-client-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .orders-page.is-tablet > .catalog-table-wrap th:nth-child(6), .orders-page.is-tablet > .catalog-table-wrap td:nth-child(6) { display: none; }
+}
+
+/* Poco alto (tablet de 7" acostada o teclado abierto) */
+@media (max-height: 600px) {
+  .orders-page.is-tablet .order-header .field-label { display: none; }
+  .orders-page.is-tablet .order-header { padding-top: 4px; padding-bottom: 0; }
+  .orders-page.is-tablet .order-side .order-detail h3 { display: none; }
+  .orders-page.is-tablet .order-side .order-totals > span:not(.grand-total) { font-size: 11px; }
+  .orders-page.is-tablet .order-side .order-totals .grand-total { padding-top: 2px; font-size: 17px; }
+  .orders-page.is-tablet .order-side .checkout-editor { max-height: 80px; }
+}
+
+/* Terminaciones */
+/* La franja de estado del listado (pedido-ventana.css) no corresponde al detalle. */
+.orders-page.is-tablet .order-detail tbody td { box-shadow: none !important; }
+.orders-page.is-tablet .product-grid { padding-right: 8px; }
+.orders-page.is-tablet .order-header label { font-size: 13px; }
+.orders-page.is-tablet .order-header { padding-bottom: 0; }
+.orders-page.is-tablet .order-header .order-fields .table-number-input { width: 122px; padding-left: 8px; padding-right: 8px; }
+.orders-page.is-tablet .observation-editor { grid-template-columns: minmax(0, 1fr) 104px; }
+
+@media (max-width: 699px) {
+  .orders-page.is-tablet .order-header .delivery-type-field { flex: 1 1 250px; min-width: 0; }
+  .orders-page.is-tablet .order-header .delivery-icon { display: none; }
+  .orders-page.is-tablet .order-header .order-fields .table-number-input { width: 104px; }
+}
+
+@media (max-height: 600px) {
+  .orders-page.is-tablet .order-editor-layout { flex-basis: 240px; min-height: 240px; }
+  .orders-page.is-tablet .order-side .order-detail { min-height: 100px; }
+  .orders-page.is-tablet .order-side .checkout-summary.is-new { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; }
+  .orders-page.is-tablet .order-side .checkout-summary.is-new .order-totals > span:not(.grand-total) { display: none; }
+  .orders-page.is-tablet .order-side .checkout-summary.is-new .order-totals .grand-total { display: grid; gap: 0; border: 0; padding: 0; font-size: 13px; }
+  .orders-page.is-tablet .order-side .checkout-summary.is-new .order-totals .grand-total strong { font-size: 17px; white-space: nowrap; }
+  .orders-page.is-tablet .order-side .checkout-summary.is-new .order-actions .primary { padding-left: 6px; padding-right: 6px; font-size: 14px; }
+  .orders-page.is-tablet .order-side .checkout-editor { max-height: 64px; }
+}
+
+/* Con el teclado abierto el encabezado del sistema le deja su lugar al pedido. */
+@media (max-height: 450px) {
+  .app-shell.tablet-order .topbar:has(.topbar-slot:empty) { display: none; }
+}
+
+/* Tablet de 7": productos, detalle y cobro uno debajo del otro, en vertical y horizontal.
+   Los contenedores intermedios usan display: contents para que Total + Guardar pueda quedar pegado abajo en toda la página. */
+.orders-page.is-tablet.is-tablet-chica { scroll-padding-bottom: 80px; }
+.orders-page.is-tablet-chica.is-tablet .order-editor-layout,
+.orders-page.is-tablet-chica.is-tablet .order-workspace,
+.orders-page.is-tablet-chica.is-tablet .order-side,
+.orders-page.is-tablet-chica.is-tablet .order-side .order-checkout { display: contents; }
+
+/* Productos: todo el ancho, con su propio desplazamiento; al llegar al final sigue la página. */
+.orders-page.is-tablet-chica.is-tablet .order-picker { flex: none; width: 100%; height: 48vh; min-height: 300px; max-height: 560px; }
+.orders-page.is-tablet-chica.is-tablet .product-picker { min-height: 0; overscroll-behavior: auto; }
+
+/* Detalle: crece con los productos, sin desplazamiento interno. */
+.orders-page.is-tablet-chica.is-tablet .order-side .order-detail { flex: none; width: 100%; height: auto; min-height: 0; overflow: visible; }
+.orders-page.is-tablet-chica.is-tablet .order-side .order-detail h3 { display: block; }
+.orders-page.is-tablet-chica.is-tablet .order-side .order-detail .catalog-table-wrap { flex: none; height: auto; min-height: 0; overflow: visible; }
+.orders-page.is-tablet-chica.is-tablet .order-detail tbody tr { grid-template-columns: minmax(0, 1fr) auto minmax(80px, auto) 44px; grid-template-areas: "name qty total remove"; }
+.orders-page.is-tablet-chica.is-tablet .ingredient-modifier-picker { max-height: none; }
+
+/* Descuento, observación y cobro */
+.orders-page.is-tablet-chica.is-tablet .checkout-more { flex: none; padding: 0 10px; border: 1px solid #dfe7e3; border-radius: 16px; background: #fff; }
+.orders-page.is-tablet-chica.is-tablet .order-side .checkout-editor { max-height: none; overflow: visible; padding-bottom: 10px; }
+
+/* Totales y botones */
+.orders-page.is-tablet-chica.is-tablet .order-side .checkout-summary { flex: none; padding: 8px 10px; border: 1px solid #dfe7e3; border-radius: 12px; background: #fff; }
+.orders-page.is-tablet-chica.is-tablet .order-side .checkout-summary.is-new { position: sticky; bottom: 0; z-index: 4; display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; padding: 6px 10px; box-shadow: 0 -4px 14px #17201f14; }
+.orders-page.is-tablet-chica.is-tablet .order-side .checkout-summary.is-new .order-totals .grand-total { display: grid; gap: 0; border: 0; padding: 0; font-size: 13px; }
+.orders-page.is-tablet-chica.is-tablet .order-side .checkout-summary.is-new .order-totals .grand-total strong { font-size: 18px; white-space: nowrap; }
+.orders-page.is-tablet-chica.is-tablet .order-side .checkout-summary.is-new .order-totals { row-gap: 0; }
+.orders-page.is-tablet-chica.is-tablet .order-side .order-detail .catalog-table tbody tr > td { font-size: 13px; }
+.orders-page.is-tablet-chica.is-tablet .order-header .order-fields .table-number-input { width: 118px; padding-left: 6px; padding-right: 6px; }

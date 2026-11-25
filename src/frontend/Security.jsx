@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useState } from 'react';
 import TopbarSlot from './TopbarSlot.jsx';
-import { formDefinitions } from '../config/menu.js';
+import { formDefinitions, specialPermissions } from '../config/menu.js';
 import './security.css';
 
 async function request(url, options) {
@@ -16,7 +16,7 @@ const settings = {
   permisos: { title: 'Permisos', singular: 'permiso', description: 'Configurá los permisos de los formularios existentes.', id: 'idusuario_rol_evento' }
 };
 
-const formByCode = new Map(formDefinitions.map(form => [form.code, form]));
+const formByCode = new Map([...formDefinitions, ...specialPermissions].map(form => [form.code, form]));
 
 function RolePermissionTable({ role, permissions, loading, loadError, saving, onSave }) {
   const [selected, setSelected] = useState(role.permisos || []);
@@ -58,8 +58,7 @@ function Editor({ kind, item, roles, permissions, permissionsLoading, permission
           <label>Usuario<input autoFocus required maxLength="50" autoComplete="off" value={form.login} onChange={event => change('login', event.target.value)} /></label>
           <label>Nombre<input required maxLength="120" value={form.nombre} onChange={event => change('nombre', event.target.value)} /></label>
           <label>Rol<select required value={form.fk_idusuario_rol} onChange={event => change('fk_idusuario_rol', event.target.value)}><option value="">Seleccioná un rol</option>{roles.map(role => <option key={role.idusuario_rol} value={role.idusuario_rol}>{role.rol}</option>)}</select></label>
-          <label>{item ? 'Nueva contraseña (opcional)' : 'Contraseña'}<input type="password" autoComplete="new-password" required={!item} minLength="8" maxLength="100" value={form.password} onChange={event => change('password', event.target.value)} /></label>
-        </>}
+          <label>{item ? 'Nueva contraseña (opcional)' : 'Contraseña'}<input type="password" autoComplete="new-password" required={!item} minLength="8" maxLength="100" value={form.password} onChange={event => change('password', event.target.value)} /></label>        </>}
         {kind === 'roles' && <>
           <label>Nombre del rol<input autoFocus required maxLength="80" value={form.rol} onChange={event => change('rol', event.target.value)} /></label>
           <fieldset className="security-permissions"><legend>Permisos del rol</legend>

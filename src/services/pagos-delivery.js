@@ -30,7 +30,8 @@ export async function resumenDelivery(inicio, fin, { entregador = null } = {}) {
     pool.query(pedidosSql(), params),
     pool.query(`SELECT pd.idpago_delivery, to_char(pd.fecha_creado,'YYYY-MM-DD HH24:MI') AS fecha, pd.fk_identregador_delivery AS identregador,
         e.nombre_completo AS entregador, to_char(pd.fecha_desde,'YYYY-MM-DD') AS fecha_desde, to_char(pd.fecha_hasta,'YYYY-MM-DD') AS fecha_hasta,
-        pd.cantidad_pedidos, pd.total, COALESCE(f.nombre, 'Sin caja') AS forma_pago, pd.sin_caja, pd.observacion, pd.estado, pd.creado_por, pd.motivo_anulado, pd.fk_idgasto
+        pd.cantidad_pedidos, pd.total, COALESCE(f.nombre, 'Sin caja') AS forma_pago, pd.sin_caja, pd.observacion, pd.estado, pd.creado_por, pd.motivo_anulado, pd.fk_idgasto,
+        (SELECT r.idrendicion_delivery FROM rendicion_delivery r WHERE r.fk_idpago_delivery=pd.idpago_delivery AND r.estado='activa') AS idrendicion_delivery
       FROM pago_delivery pd JOIN entregador_delivery e ON e.identregador_delivery = pd.fk_identregador_delivery
       LEFT JOIN forma_pago f ON f.idforma_pago = pd.fk_idforma_pago
       WHERE pd.fecha_creado >= $1::date AND pd.fecha_creado < ($2::date + INTERVAL '1 day') AND ($3::int IS NULL OR pd.fk_identregador_delivery = $3)
@@ -87,8 +88,7 @@ export async function pagarDelivery(c, body, user) {
     formaId = id(body?.fk_idforma_pago);
     if (!(await c.query('SELECT 1 FROM forma_pago WHERE idforma_pago=$1 AND activo AND es_egreso', [formaId])).rowCount) fail('Seleccioná una forma de pago activa para egresos');
     if (!(await c.query("SELECT 1 FROM caja_gral WHERE estado='abierta' FOR UPDATE")).rowCount) fail('Abrí una caja antes de pagar al entregador');
-    tipo = (await c.query('SELECT idgasto_tipo FROM gasto_tipo WHERE lower(nombre)=lower($1)', [GASTO_TIPO])).rows[0];
-    if (!tipo) fail(`Falta el tipo de gasto "${GASTO_TIPO}". Corré la migración de pagos a delivery`, 500);
+    tipo = { idgasto_tipo: await tipoGastoDelivery(c) };
   }
   // Bloquea los pedidos pendientes para que dos pagos simultáneos no incluyan el mismo pedido.
   const { rows } = await c.query(`SELECT p.idpedido, p.monto_delivery FROM pedido p
@@ -100,28 +100,45 @@ export async function pagarDelivery(c, body, user) {
   const total = rows.reduce((sum, row) => sum + number(row.monto_delivery), 0);
   // Lo que se ve en pantalla debe coincidir con lo que se paga (si alguien cobró o asignó en el medio, se avisa).
   if (body.total !== undefined && Number(body.total) !== total) fail(`El pendiente cambió a ${total.toLocaleString('es-PY')} Gs. Volvé a cargar antes de pagar`, 409);
+  const pago = { idpago_delivery: await registrarPago(c, { entregadorId, entregador: courier.nombre_completo, rows, inicio, fin, formaId, tipoId: tipo?.idgasto_tipo, sinCaja, observacion, user }) };
+  if (sinCaja) await auditar(c, user, { accion: 'PAGO_DELIVERY_SIN_CAJA', entidad: 'pago_delivery', id: pago.idpago_delivery, motivo: observacion,
+    despues: { entregador: courier.nombre_completo, total, pedidos: rows.length, periodo: `${isoText(inicio)} al ${isoText(fin)}` } });
+  return { pago: await pagoDelivery(c, pago.idpago_delivery) };
+}
+
+// Registra el pago del delivery de los pedidos dados (ya bloqueados y pendientes). Con caja crea el gasto "Pago a delivery".
+// Lo usan el pago por período y la rendición del entregador.
+export async function registrarPago(c, { entregadorId, entregador, rows, inicio, fin, formaId = null, tipoId = null, sinCaja = false, observacion = null, user, descripcion = null }) {
+  const total = rows.reduce((sum, row) => sum + number(row.monto_delivery), 0);
   let gastoId = null;
   if (!sinCaja) {
-    const descripcion = `Pago a delivery ${courier.nombre_completo} · ${rows.length} pedidos del ${isoText(inicio)} al ${isoText(fin)}`.slice(0, 500);
+    const detalle = (descripcion || `Pago a delivery ${entregador} · ${rows.length} pedidos del ${isoText(inicio)} al ${isoText(fin)}`).slice(0, 500);
     gastoId = (await c.query(`INSERT INTO gasto(fk_idgasto_tipo,fk_idforma_pago,fecha_gasto,descripcion,total_gasto,estado,creado_por)
-      VALUES($1,$2,CURRENT_DATE,$3,$4,'pagado',$5) RETURNING idgasto`, [tipo.idgasto_tipo, formaId, descripcion, total, user.login])).rows[0].idgasto;
+      VALUES($1,$2,CURRENT_DATE,$3,$4,'pagado',$5) RETURNING idgasto`, [tipoId, formaId, detalle, total, user.login])).rows[0].idgasto;
   }
   const pago = (await c.query(`INSERT INTO pago_delivery(fk_identregador_delivery,fecha_desde,fecha_hasta,cantidad_pedidos,total,fk_idforma_pago,fk_idgasto,sin_caja,observacion,creado_por)
     VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10) RETURNING idpago_delivery`, [entregadorId, inicio, fin, rows.length, total, formaId, gastoId, sinCaja, observacion, user.login])).rows[0];
   for (const row of rows) {
     await c.query('INSERT INTO pago_delivery_pedido(fk_idpago_delivery,fk_idpedido,monto_delivery) VALUES($1,$2,$3)', [pago.idpago_delivery, row.idpedido, row.monto_delivery]);
   }
-  if (sinCaja) await auditar(c, user, { accion: 'PAGO_DELIVERY_SIN_CAJA', entidad: 'pago_delivery', id: pago.idpago_delivery, motivo: observacion,
-    despues: { entregador: courier.nombre_completo, total, pedidos: rows.length, periodo: `${isoText(inicio)} al ${isoText(fin)}` } });
-  return { pago: await pagoDelivery(c, pago.idpago_delivery) };
+  return pago.idpago_delivery;
 }
 
-export async function anularPagoDelivery(c, pagoId, body, user) {
+export async function tipoGastoDelivery(c) {
+  const tipo = (await c.query('SELECT idgasto_tipo FROM gasto_tipo WHERE lower(nombre)=lower($1)', [GASTO_TIPO])).rows[0];
+  if (!tipo) fail(`Falta el tipo de gasto "${GASTO_TIPO}". Corré la migración de pagos a delivery`, 500);
+  return tipo.idgasto_tipo;
+}
+
+// desdeRendicion: la rendición anula su propio pago; desde la lista de pagos no se permite (quedaría a medias).
+export async function anularPagoDelivery(c, pagoId, body, user, { desdeRendicion = false } = {}) {
   const motivo = textRequired(body?.motivo, 'El motivo');
   if (motivo.length > 500) fail('El motivo admite hasta 500 caracteres');
   const pago = (await c.query('SELECT * FROM pago_delivery WHERE idpago_delivery=$1 FOR UPDATE', [id(pagoId)])).rows[0];
   if (!pago) fail('Pago no encontrado', 404);
   if (pago.estado === 'anulado') fail('El pago ya fue anulado', 409);
+  const rendicion = (await c.query("SELECT idrendicion_delivery FROM rendicion_delivery WHERE fk_idpago_delivery=$1 AND estado='activa'", [pago.idpago_delivery])).rows[0];
+  if (rendicion && !desdeRendicion) fail(`Este pago es parte de la rendición #${rendicion.idrendicion_delivery}. Anulá la rendición`, 409);
   if (!pago.sin_caja) {
     if (!(await c.query("SELECT 1 FROM caja_gral WHERE estado='abierta' FOR UPDATE")).rowCount) fail('Abrí una caja antes de anular el pago');
     // Anular el gasto genera la reversión en la caja abierta (la plata vuelve a caja).

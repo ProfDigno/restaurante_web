@@ -14,6 +14,8 @@ export function assertSessionSecret() {
 }
 
 const secret = () => process.env.JWT_SECRET || DEV_SECRET;
+// La sesión del entregador (delivery-auth.js) firma con el mismo secreto.
+export const sessionSecret = secret;
 
 export function signSession(user) {
   return jwt.sign({ sub: user.idusuario }, secret(), { expiresIn: '8h' });
@@ -63,6 +65,7 @@ const routeForms = {
   '/api/zonas-clientes': 'zonas', '/api/clientes': 'clientes',
   '/api/entregadores-delivery': 'delivery', '/api/unidades-medida': 'unidades-medida',
   '/api/unidades-conversion': 'conversiones-unidad', '/api/ingredientes': 'ingredientes',
+  '/api/insumos': 'insumos',
   '/api/mesas-config': 'mesas-config', '/api/ubicaciones-mesa': 'ubicaciones-mesa',
   '/api/pedidos': 'pedidos', '/api/formas-pago': 'formas-pago', '/api/cajas': 'caja',
   '/api/gasto-tipos': 'gasto-tipos', '/api/gastos': 'gastos',
@@ -76,7 +79,8 @@ const routeReadAlternatives = {
   '/api/grupos-menu': ['menu'],
   '/api/unidades-menu': ['menu'],
   '/api/ingredientes': ['menu'],
-  '/api/unidades-medida': ['ingredientes', 'conversiones-unidad'],
+  '/api/insumos': ['menu'],
+  '/api/unidades-medida': ['ingredientes', 'insumos', 'conversiones-unidad'],
   '/api/ubicaciones-mesa': ['mesas-config'],
   '/api/zonas-clientes': ['clientes', 'pedidos']
 };

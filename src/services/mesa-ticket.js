@@ -1,40 +1,16 @@
-import PDFDocument from 'pdfkit';
+import { writer, renderTicket, money, muted } from './ticket-pdf.js';
 
-const WIDTH = 80 * 72 / 25.4;
-const HEIGHT = 800;
-const MARGIN = 12;
-const CONTENT = WIDTH - MARGIN * 2;
-const money = value => `Gs. ${new Intl.NumberFormat('es-PY', { maximumFractionDigits: 0 }).format(Number(value || 0))}`;
 const date = value => new Intl.DateTimeFormat('es-PY', { timeZone: process.env.RESTAURANT_TIMEZONE || process.env.TZ || 'America/Asuncion', dateStyle: 'short', timeStyle: 'short' }).format(new Date(value));
 
-export function renderMesaTicket(cuenta, pedidos, pagos, printedAt = new Date()) {
+// Ticket de la cuenta de una mesa (58 u 80 mm según Configuración → Impresora), en una sola página.
+function layout(doc, { cuenta, pedidos, pagos }, printedAt) {
   const abierta = cuenta.estado === 'abierta';
-  const doc = new PDFDocument({ size: [WIDTH, HEIGHT], margin: 0, compress: true, info: { Title: `Mesa ${cuenta.mesa_numero} - Cuenta #${cuenta.idcuenta}`, Author: 'Restaurante Web' } });
-  let y = MARGIN;
-  const space = height => { if (y + height > HEIGHT - MARGIN) { doc.addPage(); y = MARGIN; } };
-  const text = (value, { size = 8.5, bold = false, align = 'left', color = '#17201f', gap = 3 } = {}) => {
-    const content = String(value ?? '').trim();
-    if (!content) return;
-    doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(size);
-    const height = doc.heightOfString(content, { width: CONTENT, align, lineGap: 1 });
-    space(height + gap);
-    doc.fillColor(color).text(content, MARGIN, y, { width: CONTENT, align, lineGap: 1 });
-    y += height + gap;
-  };
-  const pair = (label, value, bold = false) => {
-    const leftWidth = CONTENT * .48;
-    const rightWidth = CONTENT - leftWidth - 3;
-    doc.font(bold ? 'Helvetica-Bold' : 'Helvetica').fontSize(bold ? 10 : 8.5);
-    const height = Math.max(doc.heightOfString(label, { width: leftWidth }), doc.heightOfString(value, { width: rightWidth }));
-    space(height + 4);
-    doc.text(label, MARGIN, y, { width: leftWidth });
-    doc.text(value, MARGIN + leftWidth + 3, y, { width: rightWidth, align: 'right' });
-    y += height + 4;
-  };
-  const rule = () => { space(11); y += 3; doc.moveTo(MARGIN, y).lineTo(WIDTH - MARGIN, y).lineWidth(.5).strokeColor('#9aa8a0').stroke(); y += 8; };
+  const w = writer(doc);
+  const { text, rule, end } = w;
+  const pair = (label, value, bold = false) => w.pair(label, value, { bold, leftRatio: .48, gap: 4 });
 
   text(`MESA ${cuenta.mesa_numero}`, { size: 15, bold: true, align: 'center' });
-  text(`CUENTA #${cuenta.idcuenta} · COMPROBANTE NO FISCAL`, { size: 7, align: 'center', color: '#52625c', gap: 6 });
+  text(`CUENTA #${cuenta.idcuenta} · COMPROBANTE NO FISCAL`, { size: 7, align: 'center', color: muted, gap: 6 });
   if (abierta) text('CUENTA ABIERTA', { size: 9, bold: true, align: 'center', gap: 6 });
   pair('Inicio', date(cuenta.fecha_apertura));
   if (!abierta) pair('Fin', date(cuenta.fecha_cierre));
@@ -48,7 +24,7 @@ export function renderMesaTicket(cuenta, pedidos, pagos, printedAt = new Date())
       const extras = (line.ingredientes || []).reduce((sum, item) => sum + (item.tipo_modificacion === 'AGREGAR' ? Number(item.precio_venta || 0) : 0), 0) + Number(line.precio_observacion || 0);
       const unitPrice = Number(line.precio_venta || 0) + extras;
       text(line.nombre_mostrado || line.nombre || 'Producto', { bold: true, gap: 1 });
-      for (const item of line.ingredientes || []) text(`  ${item.tipo_modificacion === 'QUITAR' ? 'Sin' : 'Con'} ${item.nombre}${item.tipo_modificacion === 'AGREGAR' && Number(item.precio_venta) ? ` (${money(item.precio_venta)} c/u)` : ''}`, { size: 7.5, color: '#52625c', gap: 1 });
+      for (const item of line.ingredientes || []) text(`  ${item.tipo_modificacion === 'QUITAR' ? 'Sin' : 'Con'} ${item.nombre}${item.tipo_modificacion === 'AGREGAR' && Number(item.precio_venta) ? ` (${money(item.precio_venta)} c/u)` : ''}`, { size: 7.5, color: muted, gap: 1 });
       if (line.observaciones) text(`  Obs: ${line.observaciones}${Number(line.precio_observacion) ? ` (${money(line.precio_observacion)} c/u)` : ''}`, { size: 7.5, bold: true, gap: 1 });
       pair(`${quantity} x ${money(unitPrice)}`, money(quantity * unitPrice));
     }
@@ -75,11 +51,9 @@ export function renderMesaTicket(cuenta, pedidos, pagos, printedAt = new Date())
   }
   rule();
   text('Gracias por su visita', { align: 'center', gap: 0 });
-  return new Promise((resolve, reject) => {
-    const chunks = [];
-    doc.on('data', chunk => chunks.push(chunk));
-    doc.on('error', reject);
-    doc.on('end', () => resolve(Buffer.concat(chunks)));
-    doc.end();
-  });
+  return end();
+}
+
+export function renderMesaTicket(cuenta, pedidos, pagos, printedAt = new Date(), config) {
+  return renderTicket(layout, { cuenta, pedidos, pagos }, `Mesa ${cuenta.mesa_numero} - Cuenta #${cuenta.idcuenta}`, printedAt, config);
 }

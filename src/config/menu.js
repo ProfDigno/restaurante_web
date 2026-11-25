@@ -42,6 +42,7 @@ export const menuSections = [
       { id: 'grupos', label: 'Grupos de menú', path: '/grupos' },
       { id: 'unidades-menu', label: 'Unidades de menú', path: '/unidades-menu' },
       { id: 'ingredientes', label: 'Ingredientes', path: '/ingredientes' },
+      { id: 'insumos', label: 'Insumos', path: '/insumos' },
       { id: 'unidades-medida', label: 'Unidades de medida', path: '/unidades-medida' },
       { id: 'conversiones-unidad', label: 'Conversiones de unidades', path: '/conversiones-unidad' }
     ]
@@ -58,6 +59,7 @@ export const menuSections = [
       { id: 'arqueos', label: 'Arqueos', path: '/arqueos' },
       { id: 'pagos', label: 'Pagos', path: '/pagos' },
       { id: 'formas-pago', label: 'Formas de pago', path: '/formas-pago' },
+      { id: 'maquinas-pos', label: 'Máquinas POS', path: '/maquinas-pos' },
       { id: 'pagos-delivery', label: 'Pagos a delivery', path: '/pagos-delivery' }
     ]
   },
@@ -90,17 +92,18 @@ export const menuSections = [
   {
     id: 'configuracion-sistema', label: 'Configuración del sistema', icon: '⚙', items: [
       { id: 'datos-restaurante', label: 'Datos de restaurante', path: '/datos-restaurante' },
-      { id: 'configuracion-comanda', label: 'Comanda', path: '/configuracion-comanda' }
+      { id: 'configuracion-comanda', label: 'Comanda', path: '/configuracion-comanda' },
+      { id: 'configuracion-impresora', label: 'Impresora', path: '/configuracion-impresora' }
     ]
   }
 ];
 
 export const implementedForms = new Set([
   'mesas', 'historial-mesas', 'pedidos', 'comanda', 'kpi-pedidos', 'delivery', 'menu', 'categorias', 'grupos',
-  'unidades-menu', 'ubicaciones-mesa', 'mesas-config', 'ingredientes',
+  'unidades-menu', 'ubicaciones-mesa', 'mesas-config', 'ingredientes', 'insumos',
   'unidades-medida', 'conversiones-unidad', 'caja', 'formas-pago', 'gastos', 'kpi-gastos', 'gasto-tipos',
   'clientes', 'zonas', 'usuarios', 'roles', 'permisos', 'compras', 'kpi-compras', 'proveedores', 'personal', 'vales',
-  'facturas', 'datos-restaurante', 'configuracion-comanda', 'auditoria', 'kpi-rentabilidad', 'kpi-vales', 'cargos', 'pagos-delivery'
+  'facturas', 'datos-restaurante', 'configuracion-comanda', 'configuracion-impresora','auditoria', 'kpi-rentabilidad', 'kpi-vales', 'cargos', 'pagos-delivery', 'maquinas-pos'
 ]);
 
 export const permissionCode = (formId) => `FORM_${formId.toUpperCase().replaceAll('-', '_')}`;
@@ -116,3 +119,12 @@ export function menuForPermissions(permissions = []) {
       .map(({ roles, ...item }) => item) }))
     .filter((section) => section.items.length > 0);
 }
+
+// Permisos especiales: se asignan al rol como los de formularios, pero no agregan entradas al menú.
+// No forman parte de formDefinitions para que la sincronización de formularios no los asigne sola.
+export const specialPermissions = [
+  { id: 'pedidos-solo-propios', label: 'Pedidos: ver solo los propios', section: 'Pedidos', code: permissionCode('pedidos-solo-propios'),
+    description: 'En Pedidos, el usuario solo ve los pedidos que él creó. Sin este permiso ve todos.' },
+  { id: 'pedidos-anular', label: 'Pedidos: anular', section: 'Pedidos', code: permissionCode('pedidos-anular'),
+    description: 'Permite anular pedidos. Sin este permiso el botón ANULAR muestra un aviso.' }
+];

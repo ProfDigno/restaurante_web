@@ -1,10 +1,10 @@
-import { writer, renderTicket, money, dateTime, muted, danger, MARGIN } from './ticket-pdf.js';
+import { writer, renderTicket, money, dateTime, muted, danger } from './ticket-pdf.js';
 
-// Comprobante de vale (adelanto al personal) en papel de 80 mm, con firma de quien lo recibe.
+// Comprobante de vale (adelanto al personal) en papel de 58 u 80 mm, con firma de quien lo recibe.
 const pagoLabel = tipo => ({ DIARIO: 'Diario', SEMANAL: 'Semanal', QUINCENAL: 'Quincenal', MENSUAL: 'Mensual' })[tipo] || tipo || '—';
 
 function layout(doc, { vale, restaurante }, printedAt) {
-  const { state, text, pair, rule, space, header, signature } = writer(doc);
+  const { state, text, pair, rule, space, header, signature, end } = writer(doc);
   header(restaurante);
   text('VALE AL PERSONAL', { size: 14, bold: true, align: 'center', gap: 1 });
   text(`VALE #${vale.idvale} · COMPROBANTE NO FISCAL`, { size: 7, align: 'center', color: muted, gap: 6 });
@@ -33,7 +33,7 @@ function layout(doc, { vale, restaurante }, printedAt) {
   }
   pair('Impreso', dateTime(printedAt));
   signature(`Recibí conforme · ${vale.personal_nombre || ''}`);
-  return state.y + MARGIN;
+  return end();
 }
 
 export function renderValeTicket(data, printedAt = new Date()) {

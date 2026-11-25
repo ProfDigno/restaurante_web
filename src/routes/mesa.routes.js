@@ -3,6 +3,7 @@ import { pool } from '../config/database.js';
 import { requireAuth, requireCurrentForm, requirePermission } from '../middleware/auth.js';
 import { account, id, order } from '../services/pedidos.js';
 import { renderMesaTicket } from '../services/mesa-ticket.js';
+import { sendPdf, ticketRoute } from '../services/ticket-pdf.js';
 
 const router = Router();
 router.use(requireAuth, (req, res, next) => req.path.startsWith('/historial')
@@ -62,7 +63,7 @@ router.get('/historial', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
-router.get('/historial/:cuentaId/ticket.pdf', async (req, res, next) => {
+ticketRoute(router,'/historial/:cuentaId/ticket.pdf', async (req, res, next) => {
   try {
     const cuentaId = id(req.params.cuentaId);
     const { rows } = await pool.query(`SELECT c.idcuenta, c.fecha_apertura, c.fecha_cierre, c.total,
@@ -73,17 +74,11 @@ router.get('/historial/:cuentaId/ticket.pdf', async (req, res, next) => {
     if (!rows.length) return res.status(404).json({ error: 'Uso de mesa cerrado no encontrado' });
     const { pedidos, pagos } = await ticketData(cuentaId);
     const pdf = await renderMesaTicket(rows[0], pedidos, pagos);
-    res.set({
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `inline; filename="mesa-${rows[0].mesa_numero}-cuenta-${cuentaId}.pdf"`,
-      'Cache-Control': 'no-store',
-      'Content-Length': String(pdf.length)
-    });
-    res.send(pdf);
+    await sendPdf(res, pdf, `mesa-${rows[0].mesa_numero}-cuenta-${cuentaId}.pdf`);
   } catch (error) { next(error); }
 });
 
-router.get('/cuentas/:cuentaId/ticket.pdf', async (req, res, next) => {
+ticketRoute(router,'/cuentas/:cuentaId/ticket.pdf', async (req, res, next) => {
   try {
     const cuentaId = id(req.params.cuentaId);
     const { rows } = await pool.query(`SELECT c.idcuenta, c.estado, c.fecha_apertura, c.total,
@@ -96,13 +91,7 @@ router.get('/cuentas/:cuentaId/ticket.pdf', async (req, res, next) => {
     if (!data) return res.status(404).json({ error: 'Cuenta de mesa abierta no encontrada' });
     const { pedidos, pagos, cobrado, saldo } = data;
     const pdf = await renderMesaTicket({ ...rows[0], cobrado, saldo }, pedidos, pagos);
-    res.set({
-      'Content-Type': 'application/pdf',
-      'Content-Disposition': `inline; filename="mesa-${rows[0].mesa_numero}-cuenta-${cuentaId}-abierta.pdf"`,
-      'Cache-Control': 'no-store',
-      'Content-Length': String(pdf.length)
-    });
-    res.send(pdf);
+    await sendPdf(res, pdf, `mesa-${rows[0].mesa_numero}-cuenta-${cuentaId}-abierta.pdf`);
   } catch (error) { next(error); }
 });
 

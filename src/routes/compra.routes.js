@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { pool } from '../config/database.js';
 import { operation, integer, id, fail, textRequired } from '../services/pedidos.js';
 import { renderCompraTicket } from '../services/compra-ticket.js';
-import { restaurantInfo, sendPdf } from '../services/ticket-pdf.js';
+import { restaurantInfo, sendPdf, ticketRoute } from '../services/ticket-pdf.js';
 import { auditar } from '../services/auditoria.js';
 
 const router=Router();
@@ -49,10 +49,10 @@ router.get('/',route(async req=>{
   return {items,total,page,pageSize:size,totalPages:Math.max(1,Math.ceil(total/size))};
 }));
 router.get('/:id',route(req=>full(pool,req.params.id)));
-router.get('/:id/ticket.pdf',async(req,res,next)=>{
+ticketRoute(router,'/:id/ticket.pdf',async(req,res,next)=>{
   try{
     const compra=await full(pool,req.params.id);
-    sendPdf(res,await renderCompraTicket({compra,restaurante:await restaurantInfo(pool)}),`compra-${compra.idcompra}.pdf`);
+    await sendPdf(res,await renderCompraTicket({compra,restaurante:await restaurantInfo(pool)}),`compra-${compra.idcompra}.pdf`);
   }catch(error){next(error);}
 });
 async function saveDraft(c,req,editing){

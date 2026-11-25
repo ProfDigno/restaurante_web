@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import Pedidos from './Pedidos.jsx';
 import './pedido-ventana.css';
+import useTablet from './useTablet.js';
 
 const mobileQuery = '(max-width: 900px)';
 const isMobileDevice = () => /Android|iPhone|iPod|Mobile/i.test(navigator.userAgent) || window.matchMedia(mobileQuery).matches;
@@ -8,6 +9,7 @@ const isMobileDevice = () => /Android|iPhone|iPod|Mobile/i.test(navigator.userAg
 export default function PedidoVentana() {
   const [session, setSession] = useState({ access: 'loading', user: null });
   const [mobile, setMobile] = useState(isMobileDevice);
+  const tablet = useTablet();
 
   useEffect(() => {
     const media = window.matchMedia(mobileQuery);
@@ -32,5 +34,5 @@ export default function PedidoVentana() {
   const cuentaId = Number(new URLSearchParams(window.location.search).get('cuenta'));
   const mesaId = Number(new URLSearchParams(window.location.search).get('mesa'));
   const context = Number.isInteger(cuentaId) && cuentaId > 0 ? { cuentaId } : Number.isInteger(mesaId) && mesaId > 0 ? { mesaId } : null;
-  return <main className={`pos-window${mobile ? ' pos-mobile' : ''}`}><Pedidos user={session.user} context={context} onInvoice={pedidoId => window.open(`/?factura=${pedidoId}`, '_blank', 'noopener')} pos /></main>;
+  return <main className={`pos-window${tablet ? ' pos-tablet' : mobile ? ' pos-mobile' : ''}`}><Pedidos user={session.user} context={context} onInvoice={pedidoId => window.open(`/?factura=${pedidoId}`, '_blank', 'noopener')} pos /></main>;
 }

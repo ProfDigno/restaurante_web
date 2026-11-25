@@ -45,10 +45,12 @@ INSERT INTO usuario_rol_evento (nombre, descripcion, codigo_evento, creado_por) 
   ('Ubicaciones de mesas', 'Acceso al formulario Ubicaciones de mesas', 'FORM_UBICACIONES_MESA', 'SISTEMA'),
   ('Configuración de mesas', 'Acceso al formulario Configuración de mesas', 'FORM_MESAS_CONFIG', 'SISTEMA'),
   ('Ingredientes', 'Acceso al formulario Ingredientes', 'FORM_INGREDIENTES', 'SISTEMA'),
+  ('Insumos', 'Acceso al formulario Insumos', 'FORM_INSUMOS', 'SISTEMA'),
   ('Unidades de medida', 'Acceso al formulario Unidades de medida', 'FORM_UNIDADES_MEDIDA', 'SISTEMA'),
   ('Conversiones de unidades', 'Acceso al formulario Conversiones de unidades', 'FORM_CONVERSIONES_UNIDAD', 'SISTEMA'),
   ('Caja general', 'Acceso al formulario Caja general', 'FORM_CAJA', 'SISTEMA'),
   ('Formas de pago', 'Acceso al formulario Formas de pago', 'FORM_FORMAS_PAGO', 'SISTEMA'),
+  ('Máquinas POS', 'Acceso al catálogo de máquinas POS (Caja y finanzas)', 'FORM_MAQUINAS_POS', 'SISTEMA'),
   ('Clientes', 'Acceso al formulario Clientes', 'FORM_CLIENTES', 'SISTEMA'),
   ('Zonas de clientes', 'Acceso al formulario Zonas de clientes', 'FORM_ZONAS', 'SISTEMA'),
   ('Usuarios', 'Acceso al formulario Usuarios', 'FORM_USUARIOS', 'SISTEMA'),
@@ -57,12 +59,14 @@ INSERT INTO usuario_rol_evento (nombre, descripcion, codigo_evento, creado_por) 
   ('Facturas', 'Acceso al formulario Facturas', 'FORM_FACTURAS', 'SISTEMA'),
   ('Datos de restaurante', 'Acceso a los datos de restaurante y conexión de facturación', 'FORM_DATOS_RESTAURANTE', 'SISTEMA'),
   ('Configuración de comanda', 'Acceso a la configuración de la comanda', 'FORM_CONFIGURACION_COMANDA', 'SISTEMA'),
-  ('Auditoría', 'Acceso al registro de auditoría de acciones sensibles', 'FORM_AUDITORIA', 'SISTEMA')
+  ('Configuración de impresora', 'Acceso a la configuración de la impresora de tickets', 'FORM_CONFIGURACION_IMPRESORA', 'SISTEMA'),
+  ('Auditoría', 'Acceso al registro de auditoría de acciones sensibles', 'FORM_AUDITORIA', 'SISTEMA'),
+  ('Pedidos: anular', 'Permite anular pedidos. Sin este permiso el botón ANULAR muestra un aviso.', 'FORM_PEDIDOS_ANULAR', 'SISTEMA')
 ON CONFLICT (codigo_evento) DO NOTHING;
 INSERT INTO usuario_rol_item (fk_idusuario_rol, fk_idusuario_rol_evento, creado_por)
 SELECT r.idusuario_rol, e.idusuario_rol_evento, 'SISTEMA'
 FROM usuario_rol r JOIN usuario_rol_evento e ON e.codigo_evento LIKE 'FORM_%'
-WHERE r.rol = 'admin' OR (r.rol = 'encargado' AND e.codigo_evento NOT IN ('FORM_USUARIOS','FORM_ROLES','FORM_PERMISOS','FORM_PERSONAL','FORM_CARGOS','FORM_VALES','FORM_KPI_VALES','FORM_AUDITORIA'))
+WHERE r.rol = 'admin' OR (r.rol = 'encargado' AND e.codigo_evento NOT IN ('FORM_USUARIOS','FORM_ROLES','FORM_PERMISOS','FORM_PERSONAL','FORM_CARGOS','FORM_VALES','FORM_KPI_VALES','FORM_AUDITORIA','FORM_PEDIDOS_ANULAR'))
   OR (r.rol = 'mozo' AND e.codigo_evento IN ('FORM_MESAS','FORM_PEDIDOS','FORM_COMANDA'))
 ON CONFLICT (fk_idusuario_rol, fk_idusuario_rol_evento) DO NOTHING;
 INSERT INTO usuario (login, nombre, password_hash, fk_idusuario_rol, creado_por)

@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { pool } from '../config/database.js';
 import { operation, integer, id, fail, textRequired } from '../services/pedidos.js';
 import { renderGastoTicket } from '../services/gasto-ticket.js';
-import { restaurantInfo, sendPdf } from '../services/ticket-pdf.js';
+import { restaurantInfo, sendPdf, ticketRoute } from '../services/ticket-pdf.js';
 import { auditar } from '../services/auditoria.js';
 
 const router=Router();
@@ -56,12 +56,12 @@ router.post('/:id/anular',route(req=>operation(req,async c=>{
     antes:{estado:gasto.estado,total:Number(gasto.total_gasto),descripcion:gasto.descripcion},despues:{estado:'anulado'}});
   return {item:(await c.query(`${select} WHERE g.idgasto=$1`,[gastoId])).rows[0]};
 })));
-router.get('/:id/ticket.pdf',async(req,res,next)=>{
+ticketRoute(router,'/:id/ticket.pdf',async(req,res,next)=>{
   try{
     const gastoId=id(req.params.id);
     const gasto=(await pool.query(`${select} WHERE g.idgasto=$1`,[gastoId])).rows[0];
     if(!gasto)return res.status(404).json({error:'Gasto no encontrado'});
-    sendPdf(res,await renderGastoTicket({gasto,restaurante:await restaurantInfo(pool)}),`gasto-${gastoId}.pdf`);
+    await sendPdf(res,await renderGastoTicket({gasto,restaurante:await restaurantInfo(pool)}),`gasto-${gastoId}.pdf`);
   }catch(error){next(error);}
 });
 export default router;

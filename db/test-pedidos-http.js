@@ -123,7 +123,7 @@ try {
  ok(deniedTicket.status===401,'Ticket PDF requiere sesión');
  const ticketResponse=await fetch(ticketUrl,{headers:{Cookie:cookies.mozo}});
  const ticketBytes=Buffer.from(await ticketResponse.arrayBuffer());
- ok(ticketResponse.status===200&&ticketResponse.headers.get('content-type')?.includes('application/pdf')&&ticketResponse.headers.get('content-disposition')?.startsWith('inline;')&&ticketBytes.subarray(0,5).toString()==='%PDF-'&&/\/MediaBox \[0 0 226\.77/.test(ticketBytes.toString('latin1')),'Ticket PDF de 80 mm se entrega para abrir en el navegador');
+ ok(ticketResponse.status===200&&ticketResponse.headers.get('content-type')?.includes('application/pdf')&&ticketResponse.headers.get('content-disposition')?.startsWith('inline;')&&ticketBytes.subarray(0,5).toString()==='%PDF-'&&/\/MediaBox \[0 0 204\.09/.test(ticketBytes.toString('latin1')),'Ticket PDF de 80 mm se entrega para abrir en el navegador');
  const previewResponse=await fetch(`${base}/api/pedidos/${p.idpedido}/ticket`,{headers:{Cookie:cookies.mozo}});
  const previewHtml=await previewResponse.text();
  ok(previewResponse.status===200&&previewHtml.includes('<main class="ticket"')&&previewHtml.includes('window.print()')&&!previewHtml.includes('<iframe'),'Vista previa imprimible sin visor PDF incrustado');
@@ -165,6 +165,9 @@ try {
  const a=await call(`/api/pedidos/cuentas/${p.fk_idcuenta}`);ok(a.pagos.length===3&&a.estado==='cerrada'&&a.saldo===0,'Cobro múltiple idempotente cierra cuenta con saldo cero');
  ok((await call('/api/pedidos?estado=pagado')).items.some(item=>item.idpedido===p.idpedido),'Cobro completo cambia el pedido a PAGADO y permite filtrarlo');
  const cancellation={clave:randomUUID(),motivo:'Prueba API',devoluciones:a.pagos.map(x=>({fk_idpago:x.idpago,importe:x.importe}))};
+ const deniedCancel=await call(`/api/pedidos/${p.idpedido}/anular`,{method:'POST',body:{...cancellation,clave:randomUUID()},role:'mozo',status:403});
+ await call(`/api/pedidos/${p.idpedido}/anulacion`,{role:'mozo',status:403});
+ ok(deniedCancel.error==='No tenés permiso para anular pedidos'&&(await call(`/api/pedidos/cuentas/${p.fk_idcuenta}`)).devoluciones.length===0,'Sin el permiso "Pedidos: anular" no se puede anular');
  await Promise.all([post(`/api/pedidos/${p.idpedido}/anular`,cancellation),post(`/api/pedidos/${p.idpedido}/anular`,cancellation)]);
  const after=await call(`/api/pedidos/cuentas/${p.fk_idcuenta}`);ok(after.devoluciones.length===3&&Number(after.cobrado)===0,'Anulación de pedido pagado mantiene originales y no duplica devoluciones');
  const auditAnulado=(await pool.query("SELECT antes,despues,motivo,ip FROM auditoria WHERE accion='PEDIDO_ANULADO' AND id_entidad=$1",[p.idpedido])).rows;

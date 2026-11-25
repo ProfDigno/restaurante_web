@@ -4,3 +4,12 @@ dist/
 npm-debug.log*
 uploads/
 .cookies-test.txt
+# Respaldos y descargas locales
+*.backup
+*.zip
+agente-impresion (1)/
+# Agente de impresión: compilados (se generan con compilar.bat)
+agente-impresion/dist/
+agente-impresion/agente-impresion/
+agente-impresion/out/
+vps.txt

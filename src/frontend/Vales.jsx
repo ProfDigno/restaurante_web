@@ -9,6 +9,7 @@ import { useOperationFeedback } from './OperationFeedback.jsx';
 import './pedidos.css';
 import './gastos.css';
 import './rrhh.css';
+import TicketLink from './TicketLink.jsx';
 
 // RR.HH. · Vales: adelantos al personal que salen de la caja abierta; se pueden anular (con reversión en caja).
 const dateTime = value => value ? new Date(value).toLocaleString('es-PY') : '—';
@@ -62,7 +63,7 @@ export default function Vales() {
         <td>{item.forma_pago_nombre}</td>
         <td className="numeric-cell"><strong>{formatMoney(item.monto_vale)}</strong></td>
         <td>{item.estado === 'anulado' ? 'Anulado' : 'Pagado'}</td>
-        <td><div className="order-list-actions"><a className="edit-button ticket-link order-action-icon" href={ticketUrl(item.idvale)} target="_blank" rel="noopener noreferrer" aria-label={`Imprimir comprobante del vale #${item.idvale}`} title="Imprimir comprobante"><PrinterIcon /></a>{item.estado !== 'anulado' && <button className="edit-button" onClick={() => { setError(''); setReason(''); setCancel(item); }}>Anular</button>}</div></td>
+        <td><div className="order-list-actions"><TicketLink className="edit-button ticket-link order-action-icon" href={ticketUrl(item.idvale)} aria-label={`Imprimir comprobante del vale #${item.idvale}`} title="Imprimir comprobante"><PrinterIcon /></TicketLink>{item.estado !== 'anulado' && <button className="edit-button" onClick={() => { setError(''); setReason(''); setCancel(item); }}>Anular</button>}</div></td>
       </tr>)}</tbody>
       {data.items.length > 0 && <tfoot><tr className="rrhh-total-row"><td colSpan="4">Total pagado (según filtros, {r.pagados} vales)</td><td className="numeric-cell">{formatMoney(r.monto_pagado)}</td><td colSpan="2" /></tr></tfoot>}
     </table></div>

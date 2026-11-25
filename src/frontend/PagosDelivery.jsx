@@ -9,12 +9,15 @@ import './pedidos.css';
 import './kpi-pedidos.css';
 import './kpi-gastos.css';
 import './pagos-delivery.css';
+import TicketLink from './TicketLink.jsx';
+import RendicionDelivery, { rendicionTicketUrl } from './RendicionDelivery.jsx';
 
 // Caja y finanzas · Pagos a delivery: lo cobrado por delivery es del entregador.
 // Muestra cuánto se le debe a cada uno en el período, permite pagarle (sale de la caja abierta como gasto
 // "Pago a delivery"), anular pagos y asignar entregador a pedidos que no lo tienen.
 const dateOnly = date => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
-const initialRange = () => { const fin = new Date(); const inicio = new Date(fin.getFullYear(), fin.getMonth(), 1); return { inicio: dateOnly(inicio), fin: dateOnly(fin), entregador: '' }; };
+// Por defecto se muestra solo el día de hoy.
+const initialRange = () => { const hoy = dateOnly(new Date()); return { inicio: hoy, fin: hoy, entregador: '' }; };
 const queryOf = r => new URLSearchParams(Object.entries(r).filter(([, value]) => value !== '')).toString();
 const dayText = iso => iso ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : '—';
 const ticketUrl = id => `/api/pagos-delivery/${id}/ticket.pdf`;
@@ -28,10 +31,18 @@ export default function PagosDelivery() {
   // "Ya pagado": delivery que se pagó fuera del sistema; libera los pedidos sin mover la caja.
   const [sinCaja, setSinCaja] = useState(false), [observacion, setObservacion] = useState('');
   const [assign, setAssign] = useState({}), [showOrders, setShowOrders] = useState(false);
+  // Rendición del turno: entregadores con pedidos por rendir, la rendición abierta y las ya registradas.
+  const [porRendir, setPorRendir] = useState([]), [rendir, setRendir] = useState(null), [rendiciones, setRendiciones] = useState([]);
+  const [cancelRend, setCancelRend] = useState(null);
 
   const loadOptions = async () => { const opts = await api('/api/pagos-delivery/opciones'); setOptions(opts); return opts; };
+  const loadRendiciones = async (filters = applied) => {
+    const [pending, list] = await Promise.all([api('/api/pagos-delivery/rendicion'), api(`/api/pagos-delivery/rendiciones?${queryOf(filters)}`)]);
+    setPorRendir(pending.entregadores); setRendiciones(list.items);
+  };
   const load = async (filters = applied) => {
     setLoading(true);
+    loadRendiciones(filters).catch(e => setError(`Rendiciones: ${e.message}`));
     try { setData(await api(`/api/pagos-delivery?${queryOf(filters)}`)); setError(''); } catch (e) { setError(e.message); } finally { setLoading(false); }
   };
   useEffect(() => { loadOptions().catch(e => setError(e.message)); }, []);
@@ -63,6 +74,10 @@ export default function PagosDelivery() {
     event.preventDefault();
     run('Anulando pago…', async () => { await mutate(`/api/pagos-delivery/${cancel.idpago_delivery}/anular`, { motivo: reason }); setCancel(null); setReason(''); return ['Pago anulado: la plata volvió a la caja y los pedidos quedaron pendientes.', {}]; });
   };
+  const annulRendicion = event => {
+    event.preventDefault();
+    run('Anulando rendición…', async () => { await mutate(`/api/pagos-delivery/rendiciones/${cancelRend.idrendicion_delivery}/anular`, { motivo: reason }); setCancelRend(null); setReason(''); return ['Rendición anulada: el delivery volvió a la caja y sus pedidos quedaron por rendir (los cobros a los clientes se mantienen).', {}]; });
+  };
   const assignCourier = pedido => run('Asignando entregador…', async () => { const result = await mutate(`/api/pagos-delivery/pedidos/${pedido.idpedido}/entregador`, { fk_identregador_delivery: assign[pedido.idpedido] }); return [`Pedido #${result.idpedido} asignado a ${result.entregador}.`, {}]; });
 
   const s = data?.resumen;
@@ -80,9 +95,13 @@ export default function PagosDelivery() {
         <a className={`secondary kpi-export-button${!data || loading ? ' disabled' : ''}`} href={`/api/pagos-delivery/reporte.pdf?${exportQuery}`} target="_blank" rel="noopener noreferrer" aria-disabled={!data || loading} onClick={blockIfBusy} title="Abrir PDF"><PdfIcon /><span>PDF</span></a>
       </div>
     </form></TopbarSlot>
-    {error && !paying && !cancel && <div className="alert error" role="alert">{error}</div>}
+    {error && !paying && !cancel && !cancelRend && <div className="alert error" role="alert">{error}</div>}
     {!options.caja_abierta && <div className="alert delivery-warning" role="status">No hay una caja abierta: abrila en Caja general para poder pagar o anular pagos.</div>}
     {loading && !data && <div className="empty-state"><div className="loader" />Cargando…</div>}
+    <article className="kpi-panel rendicion-panel">
+      <div className="kpi-panel-heading"><div><h3>Rendición del turno</h3><p>Al volver, cada entregador rinde lo que cobró: se registra cómo pagó cada cliente y se le paga su delivery. Entrega el efectivo cobrado menos su delivery (o el local le paga la diferencia).</p></div></div>
+      <div className="rendicion-couriers">{!porRendir.length ? <p className="muted">No hay pedidos delivery pendientes de rendir.</p> : porRendir.map(e => <button key={e.id} type="button" className="primary rendicion-courier" disabled={busy} onClick={() => setRendir(e.id)}>Rendir · {e.nombre}<span>{e.pedidos} {e.pedidos === 1 ? 'pedido' : 'pedidos'}</span></button>)}</div>
+    </article>
     {data && <>
       <div className="kpi-summary expense-kpi-summary">
         <div><span>Delivery del período</span><strong>{formatMoney(s.total)}</strong><small>{formatInteger(s.pedidos)} pedidos con entregador</small></div>
@@ -122,6 +141,18 @@ export default function PagosDelivery() {
       </article>
 
       <article className="kpi-panel">
+        <div className="kpi-panel-heading"><div><h3>Rendiciones</h3><p>Registradas en el período. Neto: lo que entregó el entregador, o lo que se le pagó.</p></div></div>
+        <div className="catalog-table-wrap delivery-table-wrap"><table className="catalog-table"><thead><tr><th>Rendición</th><th>Entregador</th><th className="numeric-cell">Pedidos</th><th className="numeric-cell">Efectivo</th><th className="numeric-cell">Tarjeta / otros</th><th className="numeric-cell">Delivery</th><th className="numeric-cell">Neto</th><th>Estado</th><th>Acciones</th></tr></thead>
+          <tbody>{!rendiciones.length ? <tr><td colSpan="9" className="table-empty">Sin rendiciones en el período</td></tr> : rendiciones.map(r => <tr key={r.idrendicion_delivery} className={r.estado === 'anulada' ? 'inactive-row' : ''}>
+            <td><strong>#{r.idrendicion_delivery}</strong><small>{r.fecha.slice(8, 10)}/{r.fecha.slice(5, 7)} {r.fecha.slice(11)} · {r.creado_por}</small></td><td>{r.entregador}</td>
+            <td className="numeric-cell">{formatInteger(r.cantidad_pedidos)}</td><td className="numeric-cell">{formatMoney(r.efectivo_cobrado)}</td><td className="numeric-cell">{formatMoney(r.otros_cobrado)}</td><td className="numeric-cell">{formatMoney(r.delivery_pagado)}</td>
+            <td className="numeric-cell"><strong>{formatMoney(Math.abs(r.neto))}</strong><small>{r.neto >= 0 ? 'Entregó' : 'Se le pagó'}</small></td>
+            <td>{r.estado === 'anulada' ? 'Anulada' : 'Activa'}{r.motivo_anulado && <small>Motivo: {r.motivo_anulado}</small>}</td>
+            <td><div className="order-list-actions"><TicketLink className="edit-button ticket-link order-action-icon" href={rendicionTicketUrl(r.idrendicion_delivery)} aria-label={`Imprimir comprobante de la rendición #${r.idrendicion_delivery}`} title="Imprimir comprobante"><PrinterIcon /></TicketLink>{r.estado !== 'anulada' && <button className="edit-button" disabled={busy || !options.caja_abierta} onClick={() => { setError(''); setReason(''); setCancelRend(r); }}>Anular</button>}</div></td>
+          </tr>)}</tbody></table></div>
+      </article>
+
+      <article className="kpi-panel">
         <div className="kpi-panel-heading"><div><h3>Pagos realizados</h3><p>Registrados en el período. Cada pago salió de la caja como gasto "Pago a delivery"; los anulados volvieron a la caja.</p></div></div>
         <div className="catalog-table-wrap delivery-table-wrap"><table className="catalog-table"><thead><tr><th>Pago</th><th>Entregador</th><th>Período</th><th className="numeric-cell">Pedidos</th><th>Forma de pago</th><th className="numeric-cell">Total</th><th>Estado</th><th>Acciones</th></tr></thead>
           <tbody>{!data.pagos.length ? <tr><td colSpan="8" className="table-empty">Sin pagos en el período</td></tr> : data.pagos.map(p => <tr key={p.idpago_delivery} className={p.estado === 'anulado' ? 'inactive-row' : ''}>
@@ -129,7 +160,7 @@ export default function PagosDelivery() {
             <td>{dayText(p.fecha_desde)} al {dayText(p.fecha_hasta)}</td><td className="numeric-cell">{formatInteger(p.cantidad_pedidos)}</td><td>{p.sin_caja ? <span className="delivery-pill nocash">Sin caja</span> : p.forma_pago}{p.observacion && <small>{p.observacion}</small>}</td>
             <td className="numeric-cell"><strong>{formatMoney(p.total)}</strong></td>
             <td>{p.estado === 'anulado' ? 'Anulado' : 'Pagado'}{p.motivo_anulado && <small>Motivo: {p.motivo_anulado}</small>}</td>
-            <td><div className="order-list-actions"><a className="edit-button ticket-link order-action-icon" href={ticketUrl(p.idpago_delivery)} target="_blank" rel="noopener noreferrer" aria-label={`Imprimir comprobante del pago #${p.idpago_delivery}`} title="Imprimir comprobante"><PrinterIcon /></a>{p.estado !== 'anulado' && <button className="edit-button" disabled={busy || (!p.sin_caja && !options.caja_abierta)} onClick={() => { setError(''); setReason(''); setCancel(p); }}>Anular</button>}</div></td>
+            <td><div className="order-list-actions"><TicketLink className="edit-button ticket-link order-action-icon" href={ticketUrl(p.idpago_delivery)} aria-label={`Imprimir comprobante del pago #${p.idpago_delivery}`} title="Imprimir comprobante"><PrinterIcon /></TicketLink>{p.idrendicion_delivery ? <small>Rendición #{p.idrendicion_delivery}</small> : p.estado !== 'anulado' && <button className="edit-button" disabled={busy || (!p.sin_caja && !options.caja_abierta)} onClick={() => { setError(''); setReason(''); setCancel(p); }}>Anular</button>}</div></td>
           </tr>)}</tbody></table></div>
       </article>
       <p className="kpi-footnote">El delivery de cada pedido es lo que se cobró al cliente según su zona. Lo cobrado entra a la caja junto con el pedido, pero es del entregador: hasta pagarlo, Caja general lo muestra como "Delivery por pagar a entregadores".</p>
@@ -147,6 +178,15 @@ export default function PagosDelivery() {
         </>}
         {error && <div className="alert error" role="alert">{error}</div>}
         <div className="modal-actions"><button type="button" className="secondary" disabled={busy} onClick={() => setPaying(null)}>Cancelar</button><button className="primary" disabled={busy || (sinCaja ? !observacion.trim() : !forma)}>{busy ? 'Guardando…' : sinCaja ? 'Marcar como ya pagado' : `Pagar ${formatMoney(paying.pendiente)}`}</button></div>
+      </form></div></div>}
+
+    {rendir && <RendicionDelivery courierId={rendir} onClose={() => setRendir(null)} onDone={() => { setRendir(null); load(); loadOptions().catch(() => {}); }} />}
+
+    {cancelRend && <div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true" aria-label="Anular rendición"><div className="modal-head"><h2>Anular rendición #{cancelRend.idrendicion_delivery}</h2><button className="modal-close" disabled={busy} onClick={() => setCancelRend(null)}>×</button></div>
+      <form className="modal-form" onSubmit={annulRendicion}><p className="muted">{cancelRend.entregador} · {cancelRend.cantidad_pedidos} pedidos. El delivery que se le pagó ({formatMoney(cancelRend.delivery_pagado)}) vuelve a la caja y los pedidos quedan por rendir. Los cobros a los clientes no se anulan.</p>
+        <label>Motivo<textarea required autoFocus maxLength={500} value={reason} onChange={e => setReason(e.target.value)} /></label>
+        {error && <div className="alert error" role="alert">{error}</div>}
+        <div className="modal-actions"><button type="button" className="secondary" disabled={busy} onClick={() => setCancelRend(null)}>Cancelar</button><button className="primary danger" disabled={busy}>{busy ? 'Anulando…' : 'Anular rendición'}</button></div>
       </form></div></div>}
 
     {cancel && <div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true" aria-label="Anular pago a delivery"><div className="modal-head"><h2>Anular pago #{cancel.idpago_delivery}</h2><button className="modal-close" disabled={busy} onClick={() => setCancel(null)}>×</button></div>

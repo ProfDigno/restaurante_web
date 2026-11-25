@@ -34,20 +34,20 @@ try {
     return data;
   }
   const admin = await call('/api/auth/me');
-  assert.equal(admin.user.permisos.filter(code => code.startsWith('FORM_')).length, 38);
+  assert.equal(admin.user.permisos.filter(code => code.startsWith('FORM_')).length, 42); // 41 formularios + "Pedidos: anular"
   assert.deepEqual(admin.menu.map(section => section.label), ['Operación', 'Usuarios', 'RR.HH.', 'Cliente', 'Productos', 'Mesas', 'Caja y finanzas', 'Gasto', 'Compra', 'Factura', 'Configuración del sistema']);
   assert.deepEqual(admin.menu.map(section => section.items.map(item => item.id)), [
     ['mesas', 'solo-mesas', 'historial-mesas', 'pedidos', 'solo-pedido', 'comanda', 'kpi-pedidos', 'kpi-rentabilidad'],
     ['usuarios', 'roles', 'permisos', 'auditoria'],
     ['personal', 'cargos', 'vales', 'kpi-vales'],
     ['clientes', 'zonas', 'delivery'],
-    ['categorias', 'menu', 'grupos', 'unidades-menu', 'ingredientes', 'unidades-medida', 'conversiones-unidad'],
+    ['categorias', 'menu', 'grupos', 'unidades-menu', 'ingredientes', 'insumos', 'unidades-medida', 'conversiones-unidad'],
     ['ubicaciones-mesa', 'mesas-config'],
-    ['caja', 'formas-pago', 'pagos-delivery'],
+    ['caja', 'formas-pago', 'maquinas-pos', 'pagos-delivery'],
     ['gastos', 'kpi-gastos', 'gasto-tipos'],
     ['compras', 'kpi-compras', 'proveedores'],
     ['facturas'],
-    ['datos-restaurante', 'configuracion-comanda']
+    ['datos-restaurante', 'configuracion-comanda', 'configuracion-impresora']
   ]);
   const waiter = await call('/api/auth/me', { as: 'mozo' });
   assert.deepEqual(waiter.user.permisos.filter(code => code.startsWith('FORM_')).sort(), ['FORM_COMANDA', 'FORM_MESAS', 'FORM_PEDIDOS']);

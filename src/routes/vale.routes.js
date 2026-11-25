@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { pool } from '../config/database.js';
 import { operation, integer, id, fail, textRequired } from '../services/pedidos.js';
 import { renderValeTicket } from '../services/vale-ticket.js';
-import { restaurantInfo, sendPdf } from '../services/ticket-pdf.js';
+import { restaurantInfo, sendPdf, ticketRoute } from '../services/ticket-pdf.js';
 import { auditar } from '../services/auditoria.js';
 
 // RR.HH. · Vales: adelantos al personal. Se registran pagados y el trigger trg_vale_caja genera el egreso
@@ -73,12 +73,12 @@ router.post('/:id/anular',route(req=>operation(req,async c=>{
   return {item};
 })));
 
-router.get('/:id/ticket.pdf',async(req,res,next)=>{
+ticketRoute(router,'/:id/ticket.pdf',async(req,res,next)=>{
   try{
     const valeId=id(req.params.id);
     const vale=(await pool.query(`${select} WHERE v.idvale=$1`,[valeId])).rows[0];
     if(!vale)return res.status(404).json({error:'Vale no encontrado'});
-    sendPdf(res,await renderValeTicket({vale,restaurante:await restaurantInfo(pool)}),`vale-${valeId}.pdf`);
+    await sendPdf(res,await renderValeTicket({vale,restaurante:await restaurantInfo(pool)}),`vale-${valeId}.pdf`);
   }catch(error){next(error);}
 });
 export default router;

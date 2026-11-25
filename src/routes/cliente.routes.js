@@ -8,10 +8,11 @@ const pageSizeValue = (value) => [25, 50, 100].includes(Number(value)) ? Number(
 const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const validate = (body) => {
   const values = {
-    nombre_completo: String(body?.nombre_completo || '').trim(), razon_social: String(body?.razon_social || '').trim() || null,
-    ruc: String(body?.ruc || '').trim() || null, direccion: String(body?.direccion || '').trim() || null,
+    // Nombre, razón social, dirección y notas se guardan siempre en mayúsculas (el email no).
+    nombre_completo: String(body?.nombre_completo || '').trim().toUpperCase(), razon_social: String(body?.razon_social || '').trim().toUpperCase() || null,
+    ruc: String(body?.ruc || '').trim() || null, direccion: String(body?.direccion || '').trim().toUpperCase() || null,
     telefono: String(body?.telefono || '').trim() || null, email: String(body?.email || '').trim() || null,
-    notas: String(body?.notas || '').trim() || null, fk_idzona_cliente: body?.fk_idzona_cliente === '' || body?.fk_idzona_cliente == null ? null : Number(body.fk_idzona_cliente), activo: body?.activo !== false,
+    notas: String(body?.notas || '').trim().toUpperCase() || null, fk_idzona_cliente: body?.fk_idzona_cliente === '' || body?.fk_idzona_cliente == null ? null : Number(body.fk_idzona_cliente), activo: body?.activo !== false,
     es_ocacional: body?.es_ocacional === true
   };
   if (!values.nombre_completo) return 'El nombre completo es obligatorio';

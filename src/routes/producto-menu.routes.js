@@ -32,6 +32,30 @@ const validateIngredients = (items) => {
   return values;
 };
 
+const selectSupplies = `SELECT pi.fk_idinsumo AS idinsumo, pi.cantidad,
+  i.nombre, i.activo, i.fk_idunidad_medida, u.codigo AS unidad_codigo, u.nombre AS unidad_nombre
+  FROM producto_menu_insumo pi
+  JOIN insumo i ON i.idinsumo = pi.fk_idinsumo
+  JOIN unidad_medida u ON u.idunidad_medida = i.fk_idunidad_medida
+  WHERE pi.fk_idproducto_menu = $1 ORDER BY i.nombre, i.idinsumo`;
+
+const validateSupplies = (items) => {
+  if (!Array.isArray(items)) return 'La lista de insumos debe ser un arreglo';
+  const seen = new Set();
+  const values = [];
+  for (const item of items) {
+    const id = integerValue(item?.idinsumo);
+    const quantity = String(item?.cantidad ?? '').trim();
+    if (id === null || id > 2147483647) return 'Seleccioná un insumo válido';
+    if (seen.has(id)) return 'No se puede repetir un insumo';
+    // A diferencia de los ingredientes admite fracciones: numeric(14,3).
+    if (!/^\d{1,11}(\.\d{1,3})?$/.test(quantity) || Number(quantity) <= 0) return 'La cantidad de cada insumo debe ser mayor a cero, con hasta 11 enteros y 3 decimales';
+    seen.add(id);
+    values.push({ idinsumo: id, cantidad: quantity });
+  }
+  return values;
+};
+
 const selectProduct = `
   SELECT p.idproducto_menu, p.fecha_creado, p.creado_por, p.fk_idcategoria_menu,
     p.fk_idunidad_menu, p.fk_idgrupo_menu, p.nombre, p.descripcion,
@@ -74,10 +98,14 @@ router.get('/', async (req, res, next) => {
     const pageSize = pageSizeValue(req.query.pageSize);
     const pattern = `%${search}%`;
     const offset = (page - 1) * pageSize;
-    const where = `WHERE p.nombre ILIKE $1 OR COALESCE(p.descripcion, '') ILIKE $1 OR c.nombre ILIKE $1 OR g.nombre ILIKE $1 OR u.nombre ILIKE $1`;
+    // soloActivos=true: solo productos activos (sin el parámetro, todos los estados). categoria: texto del nombre de la categoría.
+    const soloActivos = req.query.soloActivos === 'true';
+    const categoria = `%${String(req.query.categoria || '').trim()}%`;
+    const where = `WHERE (p.nombre ILIKE $1 OR COALESCE(p.descripcion, '') ILIKE $1 OR c.nombre ILIKE $1 OR g.nombre ILIKE $1 OR u.nombre ILIKE $1) AND (NOT $2::boolean OR p.activo) AND c.nombre ILIKE $3`;
+    const filters = [pattern, soloActivos, categoria];
     const [list, count] = await Promise.all([
-      pool.query(`${selectProduct} ${where} ORDER BY p.orden, p.nombre, p.idproducto_menu LIMIT $2 OFFSET $3`, [pattern, pageSize, offset]),
-      pool.query(`SELECT count(*)::int AS total FROM producto_menu p JOIN categoria_menu c ON c.idcategoria_menu = p.fk_idcategoria_menu JOIN unidad_menu u ON u.idunidad_menu = p.fk_idunidad_menu JOIN grupo_menu g ON g.idgrupo_menu = p.fk_idgrupo_menu ${where}`, [pattern])
+      pool.query(`${selectProduct} ${where} ORDER BY p.orden, p.nombre, p.idproducto_menu LIMIT $4 OFFSET $5`, [...filters, pageSize, offset]),
+      pool.query(`SELECT count(*)::int AS total FROM producto_menu p JOIN categoria_menu c ON c.idcategoria_menu = p.fk_idcategoria_menu JOIN unidad_menu u ON u.idunidad_menu = p.fk_idunidad_menu JOIN grupo_menu g ON g.idgrupo_menu = p.fk_idgrupo_menu ${where}`, filters)
     ]);
     const total = count.rows[0].total;
     res.json({ items: list.rows, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) });
@@ -101,6 +129,17 @@ router.get('/:id/ingredientes', async (req, res, next) => {
     const product = await pool.query('SELECT 1 FROM producto_menu WHERE idproducto_menu = $1', [id]);
     if (!product.rows.length) return res.status(404).json({ error: 'Producto no encontrado' });
     const { rows } = await pool.query(selectIngredients, [id]);
+    res.json({ items: rows });
+  } catch (error) { next(error); }
+});
+
+router.get('/:id/insumos', async (req, res, next) => {
+  try {
+    const id = integerValue(req.params.id, 0);
+    if (id === null) return res.status(400).json({ error: 'Producto inválido' });
+    const product = await pool.query('SELECT 1 FROM producto_menu WHERE idproducto_menu = $1', [id]);
+    if (!product.rows.length) return res.status(404).json({ error: 'Producto no encontrado' });
+    const { rows } = await pool.query(selectSupplies, [id]);
     res.json({ items: rows });
   } catch (error) { next(error); }
 });
@@ -142,6 +181,10 @@ router.put('/:id', async (req, res, next) => {
     const hasIngredients = Object.prototype.hasOwnProperty.call(req.body ?? {}, 'ingredientes');
     const ingredients = hasIngredients ? validateIngredients(req.body.ingredientes) : null;
     if (typeof ingredients === 'string') return res.status(400).json({ error: ingredients });
+    // Sin la clave "insumos" (p. ej. al activar o desactivar desde la lista) se conservan los que tenía.
+    const hasSupplies = Object.prototype.hasOwnProperty.call(req.body ?? {}, 'insumos');
+    const supplies = hasSupplies ? validateSupplies(req.body.insumos) : null;
+    if (typeof supplies === 'string') return res.status(400).json({ error: supplies });
     await client.query('BEGIN');
     const before = (await client.query('SELECT nombre, precio_venta, precio_compra, stock_actual FROM producto_menu WHERE idproducto_menu = $1 FOR UPDATE', [id])).rows[0];
     const { rows } = await client.query(`UPDATE producto_menu SET fk_idcategoria_menu = $1, fk_idunidad_menu = $2, fk_idgrupo_menu = $3, nombre = $4, descripcion = $5, precio_venta = $6, precio_compra = $7, stock_actual = $8, stock_minimo = $9, activo = $10, es_descontar_stock = $11, es_cocina = $12, es_vender = $13, es_comprar = $14 WHERE idproducto_menu = $15 RETURNING idproducto_menu`, [values.fk_idcategoria_menu, values.fk_idunidad_menu, values.fk_idgrupo_menu, values.nombre, values.descripcion, values.precio_venta, values.precio_compra, values.stock_actual, values.stock_minimo, values.activo, values.es_descontar_stock, values.es_cocina, values.es_vender, values.es_comprar, id]);
@@ -162,12 +205,24 @@ router.put('/:id', async (req, res, next) => {
           ON CONFLICT (fk_idproducto_menu, fk_idingrediente) DO UPDATE SET cantidad = EXCLUDED.cantidad`, [id, ingredient.idingrediente, ingredient.cantidad, req.user.login]);
       }
     }
+    if (hasSupplies) {
+      for (const supply of supplies) {
+        const found = await client.query(`SELECT 1 FROM insumo i WHERE i.idinsumo = $1 AND (i.activo OR EXISTS (SELECT 1 FROM producto_menu_insumo pi WHERE pi.fk_idproducto_menu = $2 AND pi.fk_idinsumo = i.idinsumo))`, [supply.idinsumo, id]);
+        if (!found.rows.length) { await client.query('ROLLBACK'); return res.status(400).json({ error: 'Un insumo no existe o está inactivo' }); }
+      }
+      await client.query('DELETE FROM producto_menu_insumo WHERE fk_idproducto_menu = $1 AND NOT (fk_idinsumo = ANY($2::integer[]))', [id, supplies.map((supply) => supply.idinsumo)]);
+      for (const supply of supplies) {
+        await client.query(`INSERT INTO producto_menu_insumo (fk_idproducto_menu, fk_idinsumo, cantidad, creado_por)
+          VALUES ($1, $2, $3, $4)
+          ON CONFLICT (fk_idproducto_menu, fk_idinsumo) DO UPDATE SET cantidad = EXCLUDED.cantidad`, [id, supply.idinsumo, supply.cantidad, req.user.login]);
+      }
+    }
     const updated = await client.query(`${selectProduct} WHERE p.idproducto_menu = $1`, [id]);
     await client.query('COMMIT');
     res.json({ item: updated.rows[0] });
   } catch (error) {
     await client.query('ROLLBACK');
-    if (error.code === '23503') return res.status(400).json({ error: 'La categoría, grupo, unidad o ingrediente seleccionado no existe' });
+    if (error.code === '23503') return res.status(400).json({ error: 'La categoría, grupo, unidad, ingrediente o insumo seleccionado no existe' });
     next(error);
   } finally { client.release(); }
 });

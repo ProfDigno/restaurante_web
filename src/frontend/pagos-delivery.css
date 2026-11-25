@@ -16,3 +16,34 @@
 .delivery-pay-total strong { font-size: 22px; }
 .delivery-pay-actions { display: flex; gap: 6px; }
 .delivery-pill.nocash { background: #eef1f4; color: #526277; }
+
+/* Rendición del turno */
+.rendicion-panel { border-color: #efc7b9; background: #fffaf7; }
+.rendicion-couriers { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 14px; }
+.rendicion-courier { display: grid; gap: 2px; min-height: 52px; text-align: left; }
+.rendicion-courier span { font-size: 11px; font-weight: 600; opacity: .9; }
+.modal.rendicion-modal { width: min(820px, 96vw); max-height: 94vh; overflow-y: auto; }
+.rendicion-form { gap: 12px; margin-top: 14px; }
+.rendicion-list { display: grid; gap: 8px; }
+.rendicion-item { display: grid; gap: 8px; padding: 12px; border: 1px solid #dfe7e3; border-radius: 12px; background: #fff; }
+.rendicion-item.is-off { opacity: .55; background: #f7f8f7; }
+.rendicion-item-head { align-items: flex-start; }
+.rendicion-item-head input, .rendicion-all input { width: 20px; height: 20px; flex: none; }
+.rendicion-item-head span { display: grid; gap: 2px; }
+.rendicion-item-head strong { color: #20342c; font-size: 14px; }
+.rendicion-item-head small { color: #71807b; font-weight: 500; }
+.rendicion-amounts { display: flex; flex-wrap: wrap; gap: 4px 18px; color: #52665e; font-size: 12px; }
+.rendicion-amounts strong { color: #20342c; }
+.rendicion-pay { display: grid; gap: 6px; }
+.rendicion-pay .payment-buttons button { min-height: 40px; padding: 8px 14px; }
+.rendicion-split-button { justify-self: start; padding: 6px 12px; font-size: 12px; }
+.rendicion-split { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 8px; padding: 8px; border-radius: 10px; background: #f4f7f5; font-size: 12px; color: #52665e; }
+.modal-form .rendicion-split .money-input { width: 130px; height: 40px; padding: 0 10px; border: 1px solid #dce5df; border-radius: 8px; font: inherit; font-size: 15px; text-align: right; }
+.rendicion-summary { position: sticky; bottom: -25px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; padding: 12px; border-radius: 12px; background: #f4f7f5; box-shadow: 0 -6px 14px #fff; }
+.rendicion-summary > span { display: grid; gap: 2px; color: #52665e; font-size: 12px; }
+.rendicion-summary strong { color: #20342c; font-size: 16px; }
+.rendicion-summary .rendicion-neto { grid-column: 1 / -1; grid-template-columns: 1fr auto; align-items: center; padding: 10px 12px; border-radius: 10px; background: #e3f3ec; color: #24704e; font-size: 15px; font-weight: 800; }
+.rendicion-summary .rendicion-neto strong { color: #24704e; font-size: 24px; }
+.rendicion-summary .rendicion-neto.is-pay { background: #fff0e8; color: #a54b2b; }
+.rendicion-summary .rendicion-neto.is-pay strong { color: #a54b2b; }
+@media (max-width: 620px) { .rendicion-summary { grid-template-columns: 1fr; } }

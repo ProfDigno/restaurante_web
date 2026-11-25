@@ -1,0 +1,54 @@
+AGENTE DE IMPRESION - RESTAURANTE WEB
+=====================================
+
+Que hace
+--------
+Imprime los tickets del sistema directo en la impresora de ESTA PC, sin el
+dialogo del navegador. El sistema detecta la PC por su nombre de Windows y usa
+la impresora, el papel (58/80 mm) y los saltos finales asignados en
+Configuracion del sistema -> Impresora -> Terminales.
+
+Requisitos
+----------
+- Windows con Java 8 o superior instalado.
+- Las impresoras de tickets instaladas en Windows.
+
+Instalacion
+-----------
+1. Descomprima el ZIP en cualquier carpeta.
+2. Ejecute instalar.bat (doble clic).
+3. Aparece un icono de impresora junto al reloj: el agente esta funcionando.
+4. Entre al sistema en esta PC: la terminal se registra sola. En
+   Configuracion del sistema -> Impresora asigne la impresora de esta PC.
+
+El agente queda instalado en %LOCALAPPDATA%\RestauranteAgenteImpresion y
+arranca solo cada vez que se inicia Windows.
+
+Configuracion
+-------------
+Panel local: http://127.0.0.1:9123/ (o clic en el icono de la bandeja).
+Desde ahi se ve la cola de impresion y se cambia la configuracion. Tambien se
+puede editar config.properties (en la carpeta de instalacion) y reiniciar el
+agente.
+
+  origenes             Direcciones del sistema que pueden imprimir.
+  impresoraPorDefecto  Impresora si el sistema no indica una.
+  cola.reintentos      Reintentos si la impresora falla (apagada, sin papel).
+  cola.maxTrabajos     Tickets impresos que se guardan para reimprimir.
+
+Cola de impresion
+-----------------
+Los tickets se guardan en la carpeta "cola" antes de imprimirse. Si la PC se
+apaga o la impresora falla, quedan pendientes y se reintentan. Desde el panel
+se puede reintentar, reimprimir o quitar cada trabajo.
+
+Problemas frecuentes
+--------------------
+- "Este sitio no puede usar el agente": agregue la direccion del sistema en
+  "origenes" (panel local) y guarde.
+- El puerto 9123 esta ocupado: el agente ya esta abierto, o cambie "puerto".
+- Logs en la carpeta "logs" de la instalacion.
+
+Desinstalar
+-----------
+Ejecute desinstalar.bat (en la carpeta de instalacion).

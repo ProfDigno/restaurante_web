@@ -1,12 +1,12 @@
-import { writer, renderTicket, money, quantity, dateTime, dateOnly, ink, muted, danger, MARGIN } from './ticket-pdf.js';
+import { writer, renderTicket, money, quantity, dateTime, dateOnly, ink, muted, danger } from './ticket-pdf.js';
 
-// Comprobante de compra en papel de 80 mm: proveedor, productos, total, pagos y saldo.
+// Comprobante de compra en papel de 58 u 80 mm: proveedor, productos, total, pagos y saldo.
 const stateLabel = compra => compra.estado === 'cancelada' ? 'CANCELADA'
   : compra.estado === 'borrador' ? 'BORRADOR'
   : compra.estado_pago === 'pagada' ? 'RECIBIDA · PAGADA' : 'RECIBIDA · PAGO PENDIENTE';
 
 function layout(doc, { compra, restaurante }, printedAt) {
-  const { state, text, pair, rule, space, header, signature } = writer(doc);
+  const { state, text, pair, rule, space, header, signature, end } = writer(doc);
   const borrador = compra.estado === 'borrador';
   const total = borrador ? Number(compra.total_borrador || 0) : Number(compra.total || 0);
   const pagos = compra.pagos || [];
@@ -66,7 +66,7 @@ function layout(doc, { compra, restaurante }, printedAt) {
   }
   pair('Impreso', dateTime(printedAt));
   signature('Firma / Recibí conforme');
-  return state.y + MARGIN;
+  return end();
 }
 
 export function renderCompraTicket(data, printedAt = new Date()) {

@@ -5,6 +5,7 @@ import MoneyInput from './MoneyInput.jsx';
 import FormaPagoBotones, { defaultFormId } from './FormaPagoBotones.jsx';
 import PedidoErrorDialog from './PedidoErrorDialog.jsx';
 import { useOperationFeedback } from './OperationFeedback.jsx';
+import TicketLink from './TicketLink.jsx';
 
 export function CajaInicial({ onClose, onOpened }) {
  const feedback=useOperationFeedback();
@@ -129,7 +130,7 @@ export default function CuentaPedido({ accountId, user, onClose, onOrder, onNew,
     {data.estado === 'abierta' && <div className="account-side">
      <div className="account-actions">
       {data.tipo === 'SALON' && onNew && <button className="secondary" disabled={busy} onClick={() => onNew(data)}>+ Nuevo pedido en esta mesa</button>}
-      {data.tipo === 'SALON' && <a className="secondary ticket-link" href={`/api/mesas/cuentas/${accountId}/ticket.pdf`} target="_blank" rel="noopener noreferrer">Imprimir ticket</a>}
+      {data.tipo === 'SALON' && <TicketLink className="secondary ticket-link" href={`/api/mesas/cuentas/${accountId}/ticket.pdf`}>Imprimir ticket</TicketLink>}
       {staff && <button className="secondary" disabled={busy} onClick={() => setBox(true)}>Ver / abrir caja</button>}
      </div>
      {!ready && <p className="form-hint">Primero terminá todos los pedidos para cobrar.</p>}

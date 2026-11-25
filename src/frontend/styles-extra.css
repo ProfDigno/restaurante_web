@@ -52,6 +52,8 @@
 .ingredient-unit{padding-bottom:12px;color:#53655f;font-weight:700}
 .ingredient-price{display:grid;gap:7px;padding-bottom:12px;font-size:11px;color:#53655f;white-space:nowrap}
 .ingredient-price strong{font-size:13px;color:#162820;font-variant-numeric:tabular-nums}
+.product-ingredient-row.product-supply-row{grid-template-columns:minmax(0,1fr) 105px 45px auto}
+@media(max-width:620px){.product-tab-panel{min-width:0}.product-modal-tabs{gap:0}.product-modal-tabs button{padding:10px 8px;white-space:nowrap}.product-ingredient-row.product-supply-row{grid-template-columns:minmax(0,1fr) 45px auto}.product-ingredient-row.product-supply-row .ingredient-remove{grid-column:3;grid-row:2}}
 .product-table{min-width:1150px}
 .numeric-cell{text-align:right;font-variant-numeric:tabular-nums}
 .numeric-input{text-align:right}
@@ -128,3 +130,15 @@
 .payment-row { flex-wrap: wrap; }
 .payment-row .payment-field { flex: 1 1 100%; }
 .payment-row label { flex: 1 1 140px; }
+
+/* Indicador de la PC (terminal) y su impresora de tickets en el encabezado. */
+.terminal-chip { flex: 0 0 auto; margin-left: 10px; padding: 5px 10px; border: 1px solid #cfdad2; border-radius: 999px; background: #f2f7f3; color: #24533a; font-size: 12px; font-weight: 600; text-decoration: none; white-space: nowrap; max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
+.topbar-slot:empty + .terminal-chip { margin-left: auto; }
+.terminal-chip.is-warn { background: #fff6e0; border-color: #f0d79a; color: #7a5600; }
+.terminal-chip.is-off { background: #f3f4f4; color: #5a6a63; font-weight: 500; }
+@media (max-width: 720px) { .terminal-chip { display: none; } }
+
+/* Entregador de delivery: bloque de acceso (usuario y contraseña) en el modal. */
+.modal-fieldset{border:1px solid var(--line);border-radius:11px;padding:12px 14px 14px;margin:0;display:grid;gap:12px}
+.modal-fieldset legend{padding:0 6px;font-size:11px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:var(--muted)}
+.modal-fieldset .field-hint{color:#ad4d3b;font-size:12px}

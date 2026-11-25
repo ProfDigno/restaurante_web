@@ -45,7 +45,7 @@ export async function account(c, accountId, lock = false) {
   return a;
 }
 export async function order(c, orderId) {
-  const p = (await c.query('SELECT * FROM pedido WHERE idpedido=$1', [id(orderId)])).rows[0];
+  const p = (await c.query('SELECT p.*, COALESCE(u.nombre, p.creado_por) AS creado_por_nombre FROM pedido p LEFT JOIN usuario u ON u.login = p.creado_por WHERE p.idpedido=$1', [id(orderId)])).rows[0];
   if (!p) fail('Pedido no encontrado', 404);
   p.detalles = (await c.query(`SELECT d.*,pm.nombre,pm.es_cocina,cm.nombre || ' - ' || pm.nombre AS nombre_mostrado,um.nombre AS unidad FROM detalle_pedido d JOIN producto_menu pm ON pm.idproducto_menu=d.fk_idproducto_menu JOIN categoria_menu cm ON cm.idcategoria_menu=pm.fk_idcategoria_menu JOIN unidad_menu um ON um.idunidad_menu=pm.fk_idunidad_menu WHERE fk_idpedido=$1 AND d.estado<>'cancelado' ORDER BY iddetalle_pedido`, [p.idpedido])).rows;
   const modifications = (await c.query(`SELECT dpi.iddetalle_pedido_ingrediente, dpi.fk_iddetalle_pedido, dpi.fk_idingrediente AS idingrediente,
