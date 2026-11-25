@@ -67,7 +67,14 @@ function layoutRendicion(doc, { rendicion: r, restaurante }, printedAt) {
   rule();
   pair('Efectivo cobrado', money(r.efectivo_cobrado));
   pair('Tarjeta / QR / otros', money(r.otros_cobrado));
-  pair('Delivery del entregador', `− ${money(r.delivery_pagado)}`);
+  // Cierre del POS: resumen impreso de la máquina contra lo cobrado en el sistema.
+  if (r.pos_informado !== null && r.pos_informado !== undefined) {
+    const diferencia = r.pos_informado - r.pos_sistema;
+    pair(`POS ${r.maquina_pos || ''}`.trim(), money(r.pos_informado));
+    pair('Según sistema', money(r.pos_sistema));
+    pair('Diferencia POS', diferencia === 0 ? 'Coincide' : `${diferencia > 0 ? '+' : '-'} ${money(Math.abs(diferencia))}`, { bold: diferencia !== 0 });
+  }
+  pair('Delivery del entregador', `- ${money(r.delivery_pagado)}`);
   rule();
   if (r.neto >= 0) pair('ENTREGA EL ENTREGADOR', money(r.neto), { bold: true });
   else pair('EL LOCAL LE PAGA', money(-r.neto), { bold: true });

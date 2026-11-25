@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { formatMoney } from './formatters.js';
 import { defaultFormId } from './FormaPagoBotones.jsx';
 import TicketLink from './TicketLink.jsx';
+import { urlConTerminal } from './terminal.js';
 import './operation-feedback.css';
 
 const FeedbackContext = createContext(null);
@@ -235,6 +236,8 @@ function OperationFeedbackDialog({ feedback, onDismiss, onHold, onReplace }) {
         <button ref={acceptRef} type="button" className={`${forms.length || feedback.printUrl ? 'secondary' : 'primary'} operation-feedback-accept`} disabled={busy} onClick={onDismiss}>{forms.length ? 'PAGAR DESPUÉS' : 'ACEPTAR'}</button>
         {feedback.invoice && <button type="button" className="secondary operation-feedback-print" disabled={busy} onClick={() => { onDismiss(); feedback.invoice(); }}>FACTURAR</button>}
         {feedback.printUrl && <TicketLink ref={forms.length ? null : printRef} className={`${forms.length ? 'secondary' : 'primary'} operation-feedback-print`} href={feedback.printUrl} onClick={onDismiss}>{feedback.printLabel || 'IMPRIMIR'}</TicketLink>}
+        {/* Vista previa: abre el PDF en otra pestaña sin mandarlo a la impresora. */}
+        {feedback.printUrl && <a className="secondary operation-feedback-print" href={urlConTerminal(feedback.printUrl)} target="_blank" rel="noopener noreferrer" onClick={onDismiss}>VISTA PREVIA</a>}
       </div>}
     </div>
   </div>, document.body);

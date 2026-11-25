@@ -17,12 +17,15 @@ export default function RendicionDelivery({ courierId, onClose, onDone }) {
   const [data, setData] = useState(null), [error, setError] = useState(''), [busy, setBusy] = useState(false);
   // Por pedido: si se incluye y cómo pagó el cliente (una o dos formas).
   const [rows, setRows] = useState({});
+  // Cierre del POS: máquina que usó el entregador y monto de su resumen impreso.
+  const [maquinaPos, setMaquinaPos] = useState(''), [posInformado, setPosInformado] = useState('');
 
   useEffect(() => {
     let current = true;
     api(`/api/pagos-delivery/rendicion/${courierId}`).then(d => {
       if (!current) return;
       setData(d);
+      if (d.maquinas_pos?.length === 1) setMaquinaPos(String(d.maquinas_pos[0].idmaquina_pos));
       setRows(Object.fromEntries(d.pedidos.map(p => [p.idpedido, { incluir: true, pagos: pagosDe(p, d.fk_idforma_efectivo) }])));
     }).catch(e => { if (current) setError(e.message); });
     return () => { current = false; };
@@ -31,16 +34,23 @@ export default function RendicionDelivery({ courierId, onClose, onDone }) {
   const efectivo = String(data?.fk_idforma_efectivo || '');
   const elegidos = (data?.pedidos || []).filter(p => rows[p.idpedido]?.incluir);
   const resumen = useMemo(() => {
-    let cash = 0, otros = 0, delivery = 0, faltan = 0;
+    const conPos = new Set((data?.formas || []).filter(f => f.usa_pos).map(f => String(f.idforma_pago)));
+    let cash = 0, otros = 0, delivery = 0, faltan = 0, pos = 0;
     for (const p of elegidos) {
       const pagos = rows[p.idpedido].pagos;
       const cobrado = pagos.reduce((sum, pay) => sum + Number(pay.importe || 0), 0);
       if (cobrado !== p.saldo || pagos.some(pay => Number(pay.importe) > 0 && !pay.fk_idforma_pago)) faltan += 1;
-      for (const pay of pagos) { if (pay.fk_idforma_pago === efectivo) cash += Number(pay.importe || 0); else otros += Number(pay.importe || 0); }
+      for (const pay of pagos) {
+        if (pay.fk_idforma_pago === efectivo) cash += Number(pay.importe || 0); else otros += Number(pay.importe || 0);
+        if (conPos.has(pay.fk_idforma_pago)) pos += Number(pay.importe || 0);
+      }
       delivery += p.delivery_a_pagar;
     }
-    return { cash, otros, delivery, neto: cash - delivery, faltan };
+    return { cash, otros, delivery, neto: cash - delivery, faltan, pos };
   }, [rows, data]);
+  const posCargado = posInformado !== '';
+  const posDiferencia = Number(posInformado || 0) - resumen.pos;
+  const faltaPos = resumen.pos > 0 && (!maquinaPos || !posCargado);
 
   const setRow = (pedidoId, values) => setRows(current => ({ ...current, [pedidoId]: { ...current[pedidoId], ...values } }));
   const setPago = (pedido, index, values) => setRow(pedido.idpedido, { pagos: rows[pedido.idpedido].pagos.map((pay, i) => i === index ? { ...pay, ...values } : pay) });
@@ -55,12 +65,13 @@ export default function RendicionDelivery({ courierId, onClose, onDone }) {
 
   const confirm = async event => {
     event.preventDefault();
-    if (busy || !elegidos.length || resumen.faltan) return;
+    if (busy || !elegidos.length || resumen.faltan || faltaPos) return;
     const feedbackId = feedback.begin('Registrando la rendición…');
     setBusy(true); setError('');
     try {
       const { rendicion } = await mutate('/api/pagos-delivery/rendir', {
         fk_identregador_delivery: data.entregador.id, neto: resumen.neto,
+        ...(resumen.pos > 0 ? { fk_idmaquina_pos: maquinaPos, pos_informado: posInformado } : {}),
         pedidos: elegidos.map(p => ({ idpedido: p.idpedido, pagos: rows[p.idpedido].pagos.filter(pay => Number(pay.importe) > 0) }))
       });
       const texto = rendicion.neto >= 0 ? `${rendicion.entregador} entrega ${formatMoney(rendicion.neto)}` : `Se le pagan ${formatMoney(-rendicion.neto)} a ${rendicion.entregador}`;
@@ -102,6 +113,19 @@ export default function RendicionDelivery({ courierId, onClose, onDone }) {
           </div>)}
         </article>;
       })}</div>
+      {resumen.pos > 0 && <section className="rendicion-pos" aria-label="Cierre del POS">
+        <h3>Cierre del POS</h3>
+        {!data.maquinas_pos?.length ? <div className="alert error">No hay máquinas POS activas: cargalas en Caja y finanzas · Máquinas POS.</div> : <>
+          <span className="field-label">Máquina</span>
+          <FormaPagoBotones forms={data.maquinas_pos.map(m => ({ idforma_pago: m.idmaquina_pos, nombre: m.nombre }))} disabled={busy} value={maquinaPos} onChange={setMaquinaPos} />
+          <div className="rendicion-pos-amounts">
+            <label>Monto del resumen del POS<MoneyInput min={0} value={posInformado} disabled={busy} onValueChange={value => setPosInformado(value === '' || value === null || value === undefined ? '' : String(value))} aria-label="Monto del resumen del POS" /></label>
+            <span>Según el sistema <strong>{formatMoney(resumen.pos)}</strong></span>
+            <span className={`rendicion-pos-diff${!posCargado ? '' : posDiferencia === 0 ? ' is-ok' : ' is-bad'}`}>Diferencia <strong>{!posCargado ? '—' : posDiferencia === 0 ? 'Coincide' : `${posDiferencia > 0 ? 'Sobra' : 'Falta'} ${formatMoney(Math.abs(posDiferencia))}`}</strong></span>
+          </div>
+          {posCargado && posDiferencia !== 0 && <p className="form-hint danger">El resumen del POS no coincide con lo cobrado en el sistema. Se puede rendir igual: la diferencia queda registrada.</p>}
+        </>}
+      </section>}
       <div className="rendicion-summary">
         <span>Efectivo cobrado <strong>{formatMoney(resumen.cash)}</strong></span>
         <span>Tarjeta / QR / otros <strong>{formatMoney(resumen.otros)}</strong></span>
@@ -109,9 +133,10 @@ export default function RendicionDelivery({ courierId, onClose, onDone }) {
         <span className={`rendicion-neto${resumen.neto < 0 ? ' is-pay' : ''}`}>{resumen.neto >= 0 ? 'El entregador entrega' : 'El local le paga'} <strong>{formatMoney(Math.abs(resumen.neto))}</strong></span>
       </div>
       {resumen.faltan > 0 && <p className="form-hint danger">Revisá {resumen.faltan === 1 ? 'un pedido' : `${resumen.faltan} pedidos`}: elegí la forma de cobro y que los importes sumen el saldo.</p>}
+      {faltaPos && resumen.faltan === 0 && <p className="form-hint danger">Elegí la máquina POS y escribí el monto de su resumen para rendir.</p>}
       {error && <div className="alert error" role="alert">{error}</div>}
       <div className="modal-actions"><button type="button" className="secondary" disabled={busy} onClick={onClose}>Cancelar</button>
-        <button className="primary" disabled={busy || !elegidos.length || resumen.faltan > 0 || !data.caja_abierta || !efectivo}>{busy ? 'Registrando…' : `Rendir ${elegidos.length} ${elegidos.length === 1 ? 'pedido' : 'pedidos'}`}</button></div>
+        <button className="primary" disabled={busy || !elegidos.length || resumen.faltan > 0 || faltaPos || !data.caja_abierta || !efectivo}>{busy ? 'Registrando…' : `Rendir ${elegidos.length} ${elegidos.length === 1 ? 'pedido' : 'pedidos'}`}</button></div>
     </form>}
   </div></div>;
 }

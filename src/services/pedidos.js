@@ -243,7 +243,7 @@ export async function finishOrder(c, orderId, version = null, user = null) {
   await c.query("UPDATE detalle_pedido SET estado='listo' WHERE fk_idpedido=$1 AND estado<>'cancelado'",[p.idpedido]);
   await c.query("UPDATE pedido SET estado='listo',version_web=version_web+1 WHERE idpedido=$1",[p.idpedido]);
   const updatedAccount = await account(c,p.fk_idcuenta,true);
-  if (updatedAccount.saldo === 0 && updatedAccount.pagos.some(pay=>pay.fk_idpedido && pay.estado==='aprobado' && Number(pay.disponible)>0)
+  if (updatedAccount.saldo === 0 && updatedAccount.pagos.some(pay=>pay.estado==='aprobado' && Number(pay.disponible)>0)
     && updatedAccount.pedidos.every(item=>['listo','entregado','pagado','cancelado'].includes(item.estado))) {
     await c.query('SELECT cerrar_cuenta_mesa($1,$2)',[updatedAccount.idcuenta,user?.login || p.creado_por]);
   }
@@ -252,13 +252,15 @@ export async function finishOrder(c, orderId, version = null, user = null) {
 export async function collect(c, accountId, body, user) {
   const a = await account(c,accountId,true);
   if (a.estado !== 'abierta') fail('La cuenta está cerrada',409);
-  if (a.pedidos.some(p=>!['listo','entregado','pagado','cancelado'].includes(p.estado))) fail('Primero terminá todos los pedidos de la cuenta');
+  // Se puede cobrar con pedidos en COCINA; la cuenta se cierra recién cuando todos están terminados.
+  const ready = a.pedidos.every(p=>['listo','entregado','pagado','cancelado'].includes(p.estado));
   if (!Array.isArray(body.pagos) || body.pagos.length > 30) fail('Pagos inválidos');
+  if (!body.pagos.length && !ready) fail('Primero terminá todos los pedidos de la cuenta');
   const total = body.pagos.reduce((sum,p)=>sum+integer(p.importe,'Importe',1),0);
   if (total > a.saldo || (!total && a.saldo)) fail('El importe debe ser mayor a cero y no superar el saldo');
   if (total && !(await c.query("SELECT idcaja_gral FROM caja_gral WHERE estado='abierta' FOR UPDATE")).rowCount) fail('Abrí una caja antes de cobrar');
   for (const pay of body.pagos) await c.query("INSERT INTO pago(fk_idcuenta,fk_idforma_pago,importe,estado,creado_por) VALUES($1,$2,$3,'aprobado',$4)",[a.idcuenta,id(pay.fk_idforma_pago),integer(pay.importe,'Importe',1),user.login]);
-  if (total === a.saldo) await c.query('SELECT cerrar_cuenta_mesa($1,$2)',[a.idcuenta,user.login]);
+  if (total === a.saldo && ready) await c.query('SELECT cerrar_cuenta_mesa($1,$2)',[a.idcuenta,user.login]);
   return { cuenta: await account(c,a.idcuenta) };
 }
 export async function cancellationPreview(c,orderId) {

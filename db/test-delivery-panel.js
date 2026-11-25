@@ -132,10 +132,17 @@ try {
   t = await totales(eliCookie);
   ok(t.efectivo === 0 && t.pos_total === 75000 && t.neto === -15000, 'Todo por POS: neto negativo (la caja le paga el delivery)');
   // Rendir dos pedidos: el turno sigue igual, pasan de "falta rendir" a "ya rendido" con los cobros reales.
-  const rendir = await post('/api/pagos-delivery/rendir', { fk_identregador_delivery: dani, pedidos: [
+  const pedidosRendir = [
     { idpedido: enEfectivo.idpedido, pagos: [{ fk_idforma_pago: cash, importe: 75000 }] },
-    { idpedido: conPos.idpedido, pagos: [{ fk_idforma_pago: card, importe: 75000 }] }] });
+    { idpedido: conPos.idpedido, pagos: [{ fk_idforma_pago: card, importe: 75000 }] }];
+  // Con cobros por POS es obligatorio indicar la máquina y el monto de su resumen; la diferencia se guarda.
+  const sinMaquina = await post('/api/pagos-delivery/rendir', { fk_identregador_delivery: dani, pedidos: pedidosRendir });
+  ok(sinMaquina.status === 400 && /máquina POS/.test(sinMaquina.data.error), 'Sin máquina POS no se puede rendir un cobro con POS');
+  const maquina = (await pool.query("INSERT INTO maquina_pos(nombre,numero) VALUES('POS Prueba','P-1') RETURNING idmaquina_pos AS id")).rows[0].id;
+  const rendir = await post('/api/pagos-delivery/rendir', { fk_identregador_delivery: dani, fk_idmaquina_pos: maquina, pos_informado: 70000, pedidos: pedidosRendir });
   assert.equal(rendir.status, 200, JSON.stringify(rendir.data));
+  ok(rendir.data.rendicion.pos_sistema === 75000 && rendir.data.rendicion.pos_informado === 70000 && rendir.data.rendicion.maquina_pos === 'POS Prueba',
+    'La rendición guarda la máquina, lo del sistema y lo del resumen (con diferencia)');
   t = await totales(daniCookie);
   ok(t.efectivo === 150000 && t.pos_total === 75000 && t.delivery === 45000 && t.neto === 105000, 'Después de rendir, el turno mantiene sus totales');
   ok(t.rendido.pedidos === 2 && t.rendido.neto === 45000 && t.pendiente.pedidos === 1 && t.pendiente.neto === 60000, 'Separa lo ya rendido de lo que falta rendir');

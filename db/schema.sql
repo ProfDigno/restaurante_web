@@ -340,7 +340,7 @@ CREATE TABLE forma_pago (
 );
 CREATE UNIQUE INDEX forma_pago_unica_default ON forma_pago (es_default) WHERE es_default;
 
--- Caja y finanzas · Máquinas POS (catálogo; por ahora sin relación con otras tablas).
+-- Caja y finanzas · Máquinas POS (catálogo; la rendición del entregador registra con cuál cobró).
 CREATE SEQUENCE IF NOT EXISTS maquina_pos_id_seq;
 CREATE TABLE maquina_pos (
   idmaquina_pos integer NOT NULL DEFAULT nextval('maquina_pos_id_seq'::regclass) PRIMARY KEY,
@@ -2489,3 +2489,9 @@ CREATE UNIQUE INDEX IF NOT EXISTS rendicion_delivery_pedido_unico ON rendicion_d
 -- Panel del entregador (/delivery): forma de pago que el entregador indica para el pedido.
 -- Es solo informativa (no mueve la caja); la Rendición la propone como forma de cobro.
 ALTER TABLE pedido ADD COLUMN fk_idforma_pago_entrega integer REFERENCES forma_pago(idforma_pago);
+
+-- Rendición del entregador: control del cierre de la máquina POS (máquina, monto de su resumen y monto del sistema).
+ALTER TABLE rendicion_delivery ADD COLUMN fk_idmaquina_pos integer REFERENCES maquina_pos(idmaquina_pos);
+ALTER TABLE rendicion_delivery ADD COLUMN pos_sistema numeric(14,0) NOT NULL DEFAULT 0 CHECK (pos_sistema >= 0);
+ALTER TABLE rendicion_delivery ADD COLUMN pos_informado numeric(14,0) CHECK (pos_informado >= 0);
+ALTER TABLE rendicion_delivery ADD CONSTRAINT rendicion_delivery_pos_valido CHECK ((fk_idmaquina_pos IS NULL) = (pos_informado IS NULL));

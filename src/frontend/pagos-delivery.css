@@ -47,3 +47,15 @@
 .rendicion-summary .rendicion-neto.is-pay { background: #fff0e8; color: #a54b2b; }
 .rendicion-summary .rendicion-neto.is-pay strong { color: #a54b2b; }
 @media (max-width: 620px) { .rendicion-summary { grid-template-columns: 1fr; } }
+/* Rendición: cierre de la máquina POS (resumen impreso contra lo cobrado en el sistema). */
+.rendicion-pos { display: grid; gap: 8px; padding: 12px; border: 1px solid #dfe7e3; border-radius: 12px; background: #fff; }
+.rendicion-pos h3 { margin: 0; font-size: 14px; color: #20342c; }
+.rendicion-pos .payment-buttons button { min-height: 40px; padding: 8px 14px; }
+.rendicion-pos-amounts { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 8px; align-items: end; }
+.rendicion-pos-amounts label, .rendicion-pos-amounts > span { display: grid; gap: 4px; color: #52665e; font-size: 12px; }
+.rendicion-pos-amounts strong { color: #20342c; font-size: 16px; }
+.rendicion-pos-diff { padding: 8px 10px; border-radius: 10px; background: #f4f7f5; }
+.rendicion-pos-diff.is-ok, .rendicion-pos-diff.is-ok strong { background: #e3f3ec; color: #24704e; }
+.rendicion-pos-diff.is-bad, .rendicion-pos-diff.is-bad strong { background: #fdecea; color: #b3261e; }
+.pos-diff-tag { display: inline-block; margin-left: 6px; padding: 1px 6px; border-radius: 8px; background: #fdecea; color: #b3261e; font-size: 11px; font-weight: 700; }
+@media (max-width: 620px) { .rendicion-pos-amounts { grid-template-columns: 1fr; } }

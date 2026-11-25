@@ -55,17 +55,19 @@ export async function resumenRendiciones() {
 export async function pendientesRendicion(c, entregadorId) {
   const courier = (await c.query('SELECT identregador_delivery AS id, nombre_completo AS nombre, activo FROM entregador_delivery WHERE identregador_delivery=$1', [id(entregadorId)])).rows[0];
   if (!courier) fail('Entregador no encontrado', 404);
-  const [pedidos, formas, caja] = await Promise.all([
+  const [pedidos, formas, caja, maquinas] = await Promise.all([
     c.query(`${pendientesSql} ORDER BY COALESCE(p.fecha_confirmado, p.fecha_creado), p.idpedido LIMIT ${MAX_PEDIDOS}`, [courier.id]),
-    c.query('SELECT idforma_pago, nombre, es_default FROM forma_pago WHERE activo AND es_ingreso ORDER BY orden, nombre, idforma_pago'),
-    c.query("SELECT 1 FROM caja_gral WHERE estado='abierta'")
+    c.query('SELECT idforma_pago, nombre, es_default, usa_pos FROM forma_pago WHERE activo AND es_ingreso ORDER BY orden, nombre, idforma_pago'),
+    c.query("SELECT 1 FROM caja_gral WHERE estado='abierta'"),
+    c.query('SELECT idmaquina_pos, nombre, numero FROM maquina_pos WHERE activo ORDER BY orden, nombre, idmaquina_pos')
   ]);
   let efectivo = null;
   try { efectivo = await formaEfectivo(c); } catch { /* se avisa al confirmar */ }
-  return { entregador: courier, pedidos: pedidos.rows.map(shape), formas: formas.rows, fk_idforma_efectivo: efectivo, caja_abierta: caja.rowCount > 0 };
+  return { entregador: courier, pedidos: pedidos.rows.map(shape), formas: formas.rows, maquinas_pos: maquinas.rows, fk_idforma_efectivo: efectivo, caja_abierta: caja.rowCount > 0 };
 }
 
-// body: { fk_identregador_delivery, neto?, pedidos: [{ idpedido, pagos: [{ fk_idforma_pago, importe }] }] }
+// body: { fk_identregador_delivery, neto?, fk_idmaquina_pos?, pos_informado?, pedidos: [{ idpedido, pagos: [{ fk_idforma_pago, importe }] }] }
+// Con cobros en formas que usan POS es obligatorio indicar la máquina y el monto de su resumen; la diferencia se guarda.
 export async function rendirDelivery(c, body, user) {
   const entregadorId = id(body?.fk_identregador_delivery);
   const courier = (await c.query('SELECT nombre_completo FROM entregador_delivery WHERE identregador_delivery=$1', [entregadorId])).rows[0];
@@ -76,7 +78,9 @@ export async function rendirDelivery(c, body, user) {
   if (new Set(pedidoIds).size !== pedidoIds.length) fail('Hay pedidos repetidos');
   if (!(await c.query("SELECT 1 FROM caja_gral WHERE estado='abierta' FOR UPDATE")).rowCount) fail('Abrí una caja antes de rendir');
   const efectivoId = await formaEfectivo(c);
-  const ingreso = new Map((await c.query('SELECT idforma_pago, nombre FROM forma_pago WHERE activo AND es_ingreso')).rows.map(f => [f.idforma_pago, f.nombre]));
+  const formasIngreso = (await c.query('SELECT idforma_pago, nombre, usa_pos FROM forma_pago WHERE activo AND es_ingreso')).rows;
+  const ingreso = new Map(formasIngreso.map(f => [f.idforma_pago, f.nombre]));
+  const conPos = new Set(formasIngreso.filter(f => f.usa_pos).map(f => f.idforma_pago));
 
   // Bloquea los pedidos para que dos rendiciones simultáneas no tomen el mismo.
   const locked = (await c.query(`SELECT p.idpedido FROM pedido p WHERE p.idpedido = ANY($1::int[]) ORDER BY p.idpedido FOR UPDATE OF p`, [pedidoIds])).rows;
@@ -102,7 +106,19 @@ export async function rendirDelivery(c, body, user) {
     if ((await account(c, p.fk_idcuenta)).estado === 'abierta') await collect(c, p.fk_idcuenta, { pagos }, user);
     const efectivo = pagos.filter(pay => id(pay.fk_idforma_pago) === efectivoId).reduce((sum, pay) => sum + Number(pay.importe), 0);
     const formas = [...new Set(pagos.map(pay => ingreso.get(id(pay.fk_idforma_pago))))].join(', ') || null;
-    detalle.push({ ...p, cobrado_efectivo: efectivo, cobrado_otros: cobrado - efectivo, formas_cobro: formas });
+    const pos = pagos.filter(pay => conPos.has(id(pay.fk_idforma_pago))).reduce((sum, pay) => sum + Number(pay.importe), 0);
+    detalle.push({ ...p, cobrado_efectivo: efectivo, cobrado_otros: cobrado - efectivo, cobrado_pos: pos, formas_cobro: formas });
+  }
+
+  // Cierre del POS: lo que suma el sistema contra el resumen impreso de la máquina.
+  const posSistema = detalle.reduce((sum, row) => sum + row.cobrado_pos, 0);
+  let maquina = null, posInformado = null;
+  if (posSistema > 0) {
+    const faltaPos = 'Elegí la máquina POS y escribí el monto de su resumen';
+    if (!body.fk_idmaquina_pos || body.pos_informado === undefined || body.pos_informado === null || body.pos_informado === '') fail(faltaPos);
+    maquina = (await c.query('SELECT idmaquina_pos, nombre FROM maquina_pos WHERE idmaquina_pos=$1 AND activo', [id(body.fk_idmaquina_pos)])).rows[0];
+    if (!maquina) fail('Elegí una máquina POS activa');
+    posInformado = integer(body.pos_informado, 'Monto del resumen del POS', 0);
   }
 
   const efectivoCobrado = detalle.reduce((sum, row) => sum + row.cobrado_efectivo, 0);
@@ -120,14 +136,15 @@ export async function rendirDelivery(c, body, user) {
       inicio: fechas[0], fin: fechas[fechas.length - 1], formaId: efectivoId, tipoId: await tipoGastoDelivery(c), user,
       descripcion: `Rendición de ${courier.nombre_completo} · delivery de ${aPagar.length} pedidos` });
   }
-  const rendicion = (await c.query(`INSERT INTO rendicion_delivery(fk_identregador_delivery,cantidad_pedidos,efectivo_cobrado,otros_cobrado,delivery_pagado,neto,fk_idpago_delivery,creado_por)
-    VALUES($1,$2,$3,$4,$5,$6,$7,$8) RETURNING idrendicion_delivery`, [entregadorId, detalle.length, efectivoCobrado, otrosCobrado, deliveryPagado, neto, pagoId, user.login])).rows[0];
+  const rendicion = (await c.query(`INSERT INTO rendicion_delivery(fk_identregador_delivery,cantidad_pedidos,efectivo_cobrado,otros_cobrado,delivery_pagado,neto,fk_idpago_delivery,creado_por,fk_idmaquina_pos,pos_sistema,pos_informado)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) RETURNING idrendicion_delivery`, [entregadorId, detalle.length, efectivoCobrado, otrosCobrado, deliveryPagado, neto, pagoId, user.login, maquina?.idmaquina_pos ?? null, posSistema, posInformado])).rows[0];
   for (const row of detalle) {
     await c.query(`INSERT INTO rendicion_delivery_pedido(fk_idrendicion_delivery,fk_idpedido,total_pedido,cobrado_antes,cobrado_efectivo,cobrado_otros,formas_cobro,delivery_pagado)
       VALUES($1,$2,$3,$4,$5,$6,$7,$8)`, [rendicion.idrendicion_delivery, row.idpedido, row.total, row.cobrado_antes, row.cobrado_efectivo, row.cobrado_otros, row.formas_cobro, row.delivery_a_pagar]);
   }
   await auditar(c, user, { accion: 'RENDICION_DELIVERY', entidad: 'rendicion_delivery', id: rendicion.idrendicion_delivery,
-    despues: { entregador: courier.nombre_completo, pedidos: detalle.length, efectivo: efectivoCobrado, otros: otrosCobrado, delivery: deliveryPagado, neto } });
+    despues: { entregador: courier.nombre_completo, pedidos: detalle.length, efectivo: efectivoCobrado, otros: otrosCobrado, delivery: deliveryPagado, neto,
+      ...(maquina ? { pos: { maquina: maquina.nombre, sistema: posSistema, informado: posInformado, diferencia: posInformado - posSistema } } : {}) } });
   return { rendicion: await rendicionDelivery(c, rendicion.idrendicion_delivery) };
 }
 
@@ -148,11 +165,13 @@ export async function anularRendicion(c, rendicionId, body, user) {
 }
 
 export async function rendicionDelivery(c, rendicionId) {
-  const r = (await c.query(`SELECT r.*, e.nombre_completo AS entregador, e.telefono AS entregador_telefono
+  const r = (await c.query(`SELECT r.*, e.nombre_completo AS entregador, e.telefono AS entregador_telefono, m.nombre AS maquina_pos
     FROM rendicion_delivery r JOIN entregador_delivery e ON e.identregador_delivery=r.fk_identregador_delivery
+    LEFT JOIN maquina_pos m ON m.idmaquina_pos=r.fk_idmaquina_pos
     WHERE r.idrendicion_delivery=$1`, [id(rendicionId)])).rows[0];
   if (!r) fail('Rendición no encontrada', 404);
-  for (const key of ['efectivo_cobrado', 'otros_cobrado', 'delivery_pagado', 'neto']) r[key] = number(r[key]);
+  for (const key of ['efectivo_cobrado', 'otros_cobrado', 'delivery_pagado', 'neto', 'pos_sistema']) r[key] = number(r[key]);
+  r.pos_informado = r.pos_informado === null ? null : number(r.pos_informado);
   r.pedidos = (await c.query(`SELECT rp.fk_idpedido AS idpedido, rp.total_pedido, rp.cobrado_antes, rp.cobrado_efectivo, rp.cobrado_otros, rp.formas_cobro, rp.delivery_pagado,
       cl.nombre_completo AS cliente, p.zona_nombre
     FROM rendicion_delivery_pedido rp JOIN pedido p ON p.idpedido=rp.fk_idpedido JOIN cliente cl ON cl.idcliente=p.fk_idcliente
@@ -164,9 +183,12 @@ export async function rendicionDelivery(c, rendicionId) {
 export async function listaRendiciones(inicio, fin, entregador = null) {
   const { rows } = await pool.query(`SELECT r.idrendicion_delivery, to_char(r.fecha_creado,'YYYY-MM-DD HH24:MI') AS fecha, r.creado_por,
       r.fk_identregador_delivery AS identregador, e.nombre_completo AS entregador, r.cantidad_pedidos,
-      r.efectivo_cobrado, r.otros_cobrado, r.delivery_pagado, r.neto, r.estado, r.motivo_anulado
+      r.efectivo_cobrado, r.otros_cobrado, r.delivery_pagado, r.neto, r.estado, r.motivo_anulado,
+      m.nombre AS maquina_pos, r.pos_sistema, r.pos_informado
     FROM rendicion_delivery r JOIN entregador_delivery e ON e.identregador_delivery=r.fk_identregador_delivery
+    LEFT JOIN maquina_pos m ON m.idmaquina_pos=r.fk_idmaquina_pos
     WHERE r.fecha_creado >= $1::date AND r.fecha_creado < ($2::date + INTERVAL '1 day') AND ($3::int IS NULL OR r.fk_identregador_delivery=$3)
     ORDER BY r.fecha_creado DESC, r.idrendicion_delivery DESC`, [inicio, fin, entregador]);
-  return rows.map(row => ({ ...row, ...Object.fromEntries(['efectivo_cobrado', 'otros_cobrado', 'delivery_pagado', 'neto'].map(key => [key, number(row[key])])) }));
+  return rows.map(row => ({ ...row, ...Object.fromEntries(['efectivo_cobrado', 'otros_cobrado', 'delivery_pagado', 'neto', 'pos_sistema'].map(key => [key, number(row[key])])),
+    pos_informado: row.pos_informado === null ? null : number(row.pos_informado) }));
 }

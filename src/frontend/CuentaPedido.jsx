@@ -133,7 +133,7 @@ export default function CuentaPedido({ accountId, user, onClose, onOrder, onNew,
       {data.tipo === 'SALON' && <TicketLink className="secondary ticket-link" href={`/api/mesas/cuentas/${accountId}/ticket.pdf`}>Imprimir ticket</TicketLink>}
       {staff && <button className="secondary" disabled={busy} onClick={() => setBox(true)}>Ver / abrir caja</button>}
      </div>
-     {!ready && <p className="form-hint">Primero terminá todos los pedidos para cobrar.</p>}
+     {!ready && <p className="form-hint">{data.saldo > 0 ? 'Hay pedidos en COCINA: podés cobrar ahora y la cuenta se cierra al terminarlos.' : 'Cuenta pagada. Se cierra al terminar los pedidos en COCINA.'}</p>}
      {staff && <>
       <form className="modal-form" onSubmit={pay}>
        <h3>Cobrar cuenta</h3>
@@ -143,7 +143,7 @@ export default function CuentaPedido({ accountId, user, onClose, onOrder, onNew,
         <button type="button" className="edit-button" aria-label={`Quitar pago ${index + 1}`} disabled={busy || payments.length === 1} onClick={() => setPayments(payments.filter((_, itemIndex) => index !== itemIndex))}>×</button>
        </div>)}
        {data.saldo > 0 && <button type="button" className="secondary" disabled={busy} onClick={() => setPayments([...payments, { fk_idforma_pago: '', importe: Math.max(0, data.saldo - payments.reduce((sum, payment) => sum + Number(payment.importe), 0)) }])}>+ Otra forma de pago</button>}
-       <button className="primary" disabled={busy || !ready}>{busy ? 'Procesando…' : data.saldo === 0 ? 'Cerrar cuenta sin saldo' : 'Confirmar cobro'}</button>
+       <button className="primary" disabled={busy || (!ready && data.saldo === 0)}>{busy ? 'Procesando…' : data.saldo === 0 ? 'Cerrar cuenta sin saldo' : 'Confirmar cobro'}</button>
       </form>
      </>}
     </div>}

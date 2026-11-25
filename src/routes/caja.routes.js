@@ -170,13 +170,14 @@ router.post('/:id/cerrar', formAccess, route((req) => operation(req, async (clie
   return { idcaja_gral: cajaId, estado: 'cerrada' };
 })));
 
-const originLabels = { cobro: 'Cobros de pedidos', devolucion: 'Devoluciones', pago_compra: 'Pagos de compras', compra: 'Compras', gasto: 'Gastos', vale: 'Vales' };
+const originLabels = { cobro: 'Cobros de pedidos', devolucion: 'Devoluciones', pago_compra: 'Pagos de compras', compra: 'Compras', gasto: 'Gastos', vale: 'Vales', delivery: 'Pagos a delivery' };
+const num = value => Number(value || 0);
 
-async function cajaTicketData(cajaId) {
+export async function cajaTicketData(cajaId) {
   const caja = (await pool.query(`${summarySql} WHERE cg.idcaja_gral=$1 AND cg.estado='cerrada'`, [cajaId])).rows[0];
   if (!caja) return null;
   const period = [caja.fecha_apertura, caja.fecha_cierre];
-  const [arqueos, movimientos, categorias, productos, anulados] = await Promise.all([
+  const [arqueos, movimientos, categorias, productos, anulados, usuarios, descuentos, pos, rendiciones, insumos] = await Promise.all([
     arqueoRows(pool, cajaId),
     pool.query(`
       SELECT i.tipo_movimiento, i.es_reversion,
@@ -184,6 +185,7 @@ async function cajaTicketData(cajaId) {
              WHEN i.fk_idpago IS NOT NULL THEN 'cobro'
              WHEN i.fk_idcompra_pago IS NOT NULL THEN 'pago_compra'
              WHEN i.fk_idcompra IS NOT NULL THEN 'compra'
+             WHEN i.fk_idgasto IS NOT NULL AND EXISTS (SELECT 1 FROM pago_delivery pd WHERE pd.fk_idgasto=i.fk_idgasto) THEN 'delivery'
              WHEN i.fk_idgasto IS NOT NULL THEN 'gasto'
              WHEN i.fk_idvale IS NOT NULL THEN 'vale' END AS origen,
         count(*)::int AS cantidad, sum(i.monto_pago+i.monto_compra+i.monto_gasto+i.monto_vale) AS monto
@@ -206,12 +208,51 @@ async function cajaTicketData(cajaId) {
     pool.query(`
       SELECT p.idpedido, p.fecha_anulado, p.monto_total, p.motivo_anulado, p.anulado_por, p.tipo_entrega, m.numero AS mesa_numero
       FROM pedido p LEFT JOIN mesa m ON m.idmesa=p.fk_idmesa
-      WHERE p.estado='cancelado' AND p.fecha_anulado>=$1 AND p.fecha_anulado<=$2 ORDER BY p.fecha_anulado, p.idpedido`, period)
+      WHERE p.estado='cancelado' AND p.fecha_anulado>=$1 AND p.fecha_anulado<=$2 ORDER BY p.fecha_anulado, p.idpedido`, period),
+    resumenPorUsuario(pool, cajaId),
+    // Descuentos de las cuentas cobradas en esta caja: los de cada pedido y los de la cuenta entera.
+    pool.query(`
+      WITH cuentas AS (SELECT DISTINCT pg.fk_idcuenta AS id FROM caja_item i JOIN pago pg ON pg.idpago=i.fk_idpago WHERE i.fk_idcaja_gral=$1)
+      SELECT COALESCE((SELECT sum(p.monto_descuento) FROM pedido p WHERE p.fk_idcuenta IN (SELECT id FROM cuentas) AND p.estado<>'cancelado'),0)
+           + COALESCE((SELECT sum(c.monto_descuento) FROM cuenta c WHERE c.idcuenta IN (SELECT id FROM cuentas)),0) AS total,
+        (SELECT count(*) FROM pedido p WHERE p.fk_idcuenta IN (SELECT id FROM cuentas) AND p.estado<>'cancelado' AND p.monto_descuento>0)
+           + (SELECT count(*) FROM cuenta c WHERE c.idcuenta IN (SELECT id FROM cuentas) AND c.monto_descuento>0) AS cantidad`, [cajaId]),
+    // POS rendido por máquina en las rendiciones de delivery hechas con la caja abierta.
+    pool.query(`
+      SELECT m.nombre, sum(r.pos_informado) AS informado, sum(r.pos_sistema) AS sistema, count(*)::int AS rendiciones
+      FROM rendicion_delivery r JOIN maquina_pos m ON m.idmaquina_pos=r.fk_idmaquina_pos
+      WHERE r.estado='activa' AND r.fecha_creado>=$1 AND r.fecha_creado<=$2
+      GROUP BY m.idmaquina_pos, m.nombre, m.orden ORDER BY m.orden, m.nombre`, period),
+    // Rendiciones de delivery: ganancia de los entregadores y efectivo que entregaron o se les pagó.
+    pool.query(`
+      SELECT count(*)::int AS cantidad, COALESCE(sum(delivery_pagado),0) AS delivery,
+        COALESCE(sum(CASE WHEN neto>0 THEN neto ELSE 0 END),0) AS entregado,
+        COALESCE(sum(CASE WHEN neto<0 THEN -neto ELSE 0 END),0) AS pagado_local
+      FROM rendicion_delivery WHERE estado='activa' AND fecha_creado>=$1 AND fecha_creado<=$2`, period),
+    // Insumos usados: cantidad vendida × cantidad del insumo en cada producto.
+    pool.query(`
+      SELECT i.nombre, u.codigo AS unidad, sum(d.cantidad * pi.cantidad) AS cantidad
+      FROM detalle_pedido d JOIN pedido p ON p.idpedido=d.fk_idpedido
+      JOIN producto_menu_insumo pi ON pi.fk_idproducto_menu=d.fk_idproducto_menu
+      JOIN insumo i ON i.idinsumo=pi.fk_idinsumo JOIN unidad_medida u ON u.idunidad_medida=i.fk_idunidad_medida
+      WHERE p.estado<>'cancelado' AND d.estado<>'cancelado' AND p.fecha_creado>=$1 AND p.fecha_creado<=$2
+      GROUP BY i.idinsumo, i.nombre, u.codigo ORDER BY i.nombre`, period)
   ]);
   const group = (tipo) => movimientos.rows.filter((row) => row.tipo_movimiento === tipo)
-    .map((row) => ({ etiqueta: `${originLabels[row.origen] || 'Otros'}${row.es_reversion ? ' (reversión)' : ''}`, cantidad: row.cantidad, monto: row.monto }));
+    .map((row) => ({ origen: row.origen, etiqueta: `${originLabels[row.origen] || 'Otros'}${row.es_reversion ? ' (reversión)' : ''}`, cantidad: row.cantidad, monto: row.monto }));
+  // Pagos a delivery que salieron de esta caja, netos de anulaciones (incluye los de las rendiciones).
+  const deliveryCaja = movimientos.rows.filter(row => row.origen === 'delivery')
+    .reduce((sum, row) => sum + (row.tipo_movimiento === 'egreso' ? num(row.monto) : -num(row.monto)), 0);
+  const r = rendiciones.rows[0];
   const efectivo = await activeCash();
-  return { caja, efectivoId: efectivo.idforma_pago, efectivoNombre: efectivo.nombre, arqueos, ingresos: group('ingreso'), egresos: group('egreso'), categorias: categorias.rows, productos: productos.rows, anulados: anulados.rows };
+  return { caja, efectivoId: efectivo.idforma_pago, efectivoNombre: efectivo.nombre, arqueos, ingresos: group('ingreso'), egresos: group('egreso'),
+    categorias: categorias.rows, productos: productos.rows, anulados: anulados.rows, usuarios,
+    descuentos: { total: num(descuentos.rows[0].total), cantidad: num(descuentos.rows[0].cantidad) },
+    pos: pos.rows.map(row => ({ nombre: row.nombre, informado: num(row.informado), sistema: num(row.sistema), rendiciones: row.rendiciones })),
+    delivery: { rendiciones: r.cantidad, ganancia: num(r.delivery), entregado: num(r.entregado), pagado_local: num(r.pagado_local),
+      // Pagos a delivery fuera de rendición: lo que salió de la caja menos lo ya contado en las rendiciones.
+      pagos_aparte: Math.max(0, deliveryCaja - num(r.delivery)) },
+    insumos: insumos.rows.map(row => ({ nombre: row.nombre, unidad: row.unidad, cantidad: Number(row.cantidad) })) };
 }
 
 ticketRoute(router,'/:id/ticket.pdf', formAccess, async (req, res, next) => {

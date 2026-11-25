@@ -47,6 +47,7 @@
     "db:migrate-maquina-pos": "node db/migrate-maquina-pos.js",
     "db:migrate-entregador-acceso": "node db/migrate-entregador-acceso.js",
     "db:migrate-delivery-panel": "node db/migrate-delivery-panel.js",
+    "db:migrate-rendicion-pos": "node db/migrate-rendicion-pos.js",
     "test:pedidos": "node db/test-pedidos-web.js && node db/test-pedidos-http.js",
     "test:form-permissions": "node db/test-form-permissions.js",
     "test:delivery-panel": "node db/test-delivery-panel.js",

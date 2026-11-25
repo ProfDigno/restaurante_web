@@ -28,7 +28,7 @@ export async function resumenPorUsuario(client, cajaId) {
       WHERE c.estado='abierta' AND EXISTS (SELECT 1 FROM pedido p WHERE p.fk_idcuenta=c.idcuenta AND p.estado<>'cancelado')
         AND c.total - cobrado_neto_cuenta(c.idcuenta) > 0`),
     client.query(`
-      SELECT p.idpedido, p.fk_idcuenta, p.monto_total, p.creado_por AS usuario
+      SELECT p.idpedido, p.fk_idcuenta, p.monto_total, p.monto_delivery, p.creado_por AS usuario
       FROM pedido p WHERE p.estado<>'cancelado' AND p.fk_idcuenta IN (
         SELECT pg.fk_idcuenta FROM caja_item i JOIN pago pg ON pg.idpago=i.fk_idpago WHERE i.fk_idcaja_gral=$1
         UNION SELECT c.idcuenta FROM cuenta c WHERE c.estado='abierta')
@@ -43,7 +43,7 @@ export async function resumenPorUsuario(client, cajaId) {
   }
   const rows = new Map(), formas = new Map();
   const row = login => {
-    if (!rows.has(login)) rows.set(login, { usuario: login, formas: {}, total_cobrado: 0, pedidos: new Set(), pendiente: 0, pedidos_pendientes: new Set() });
+    if (!rows.has(login)) rows.set(login, { usuario: login, formas: {}, delivery_formas: {}, total_cobrado: 0, delivery: 0, pedidos: new Set(), pendiente: 0, pedidos_pendientes: new Set() });
     return rows.get(login);
   };
 
@@ -58,6 +58,13 @@ export async function resumenPorUsuario(client, cajaId) {
       const r = row(p.usuario);
       r.formas[m.forma] = (r.formas[m.forma] || 0) + p.monto;
       r.total_cobrado += p.monto;
+      // Parte del cobro que corresponde al delivery del pedido (proporcional a su total).
+      const total = Number(p.monto_total || 0), delivery = Number(p.monto_delivery || 0);
+      const parteDelivery = total > 0 && delivery > 0 ? Math.round(p.monto * Math.min(delivery, total) / total) : 0;
+      if (parteDelivery) {
+        r.delivery_formas[m.forma] = (r.delivery_formas[m.forma] || 0) + parteDelivery;
+        r.delivery += parteDelivery;
+      }
       if (p.idpedido) r.pedidos.add(p.idpedido);
     }
   }
@@ -74,12 +81,14 @@ export async function resumenPorUsuario(client, cajaId) {
   const names = new Map((await client.query('SELECT login, nombre FROM usuario WHERE login = ANY($1)', [logins])).rows.map(u => [u.login, u.nombre]));
   const formasOrden = [...formas].sort((a, b) => a[1] - b[1] || a[0].localeCompare(b[0])).map(([nombre]) => nombre);
   const filas = [...rows.values()].map(r => ({ usuario: r.usuario, nombre: names.get(r.usuario) || r.usuario, formas: r.formas, total_cobrado: r.total_cobrado,
+    delivery_formas: r.delivery_formas, delivery: r.delivery,
     pedidos: r.pedidos.size, pendiente: r.pendiente, pedidos_pendientes: r.pedidos_pendientes.size }))
     .sort((a, b) => b.total_cobrado - a.total_cobrado || b.pendiente - a.pendiente || a.nombre.localeCompare(b.nombre));
-  const totales = { formas: {}, total_cobrado: 0, pedidos: 0, pendiente: 0, pedidos_pendientes: 0 };
+  const totales = { formas: {}, delivery_formas: {}, total_cobrado: 0, delivery: 0, pedidos: 0, pendiente: 0, pedidos_pendientes: 0 };
   for (const f of filas) {
     for (const [k, v] of Object.entries(f.formas)) totales.formas[k] = (totales.formas[k] || 0) + v;
-    totales.total_cobrado += f.total_cobrado; totales.pedidos += f.pedidos; totales.pendiente += f.pendiente; totales.pedidos_pendientes += f.pedidos_pendientes;
+    for (const [k, v] of Object.entries(f.delivery_formas)) totales.delivery_formas[k] = (totales.delivery_formas[k] || 0) + v;
+    totales.total_cobrado += f.total_cobrado; totales.delivery += f.delivery; totales.pedidos += f.pedidos; totales.pendiente += f.pendiente; totales.pedidos_pendientes += f.pedidos_pendientes;
   }
   return { formas: formasOrden, filas, totales };
 }
