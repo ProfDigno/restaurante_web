@@ -161,6 +161,8 @@ function OperationFeedbackDialog({ feedback, onDismiss, onHold, onReplace }) {
   useEffect(() => {
     if (!feedback) return;
     if (feedback.phase === 'loading') dialogRef.current?.focus();
+    // En delivery se cobra al entregar: el foco va a PAGAR DESPUÉS.
+    else if (feedback.advance?.esDelivery && feedback.advance?.formas?.length) acceptRef.current?.focus();
     else (defaultPayRef.current || printRef.current || acceptRef.current)?.focus();
   }, [feedback]);
 
@@ -190,6 +192,13 @@ function OperationFeedbackDialog({ feedback, onDismiss, onHold, onReplace }) {
       setBusy(false);
       setPayingForm('');
     }
+  };
+
+  // PAGAR DESPUÉS en delivery: mismo paso siguiente que tras cobrar (ACEPTAR / IMPRIMIR, foco en IMPRIMIR).
+  const payLater = () => {
+    if (advance?.esDelivery && feedback.printUrl) {
+      onReplace(`Pedido #${advance.pedidoId} guardado. Se cobra ${formatMoney(total)} al entregar.`, { printUrl: feedback.printUrl, invoice: feedback.invoice, timeoutMs: 5000 });
+    } else onDismiss();
   };
 
   const trapTab = (event) => {
@@ -233,7 +242,7 @@ function OperationFeedbackDialog({ feedback, onDismiss, onHold, onReplace }) {
         {error && <div className="operation-feedback-charge-error" role="alert">{error}</div>}
       </div>}
       {!loading && <div className="operation-feedback-actions">
-        <button ref={acceptRef} type="button" className={`${forms.length || feedback.printUrl ? 'secondary' : 'primary'} operation-feedback-accept`} disabled={busy} onClick={onDismiss}>{forms.length ? 'PAGAR DESPUÉS' : 'ACEPTAR'}</button>
+        <button ref={acceptRef} type="button" className={`${forms.length || feedback.printUrl ? 'secondary' : 'primary'} operation-feedback-accept`} disabled={busy} onClick={forms.length ? payLater : onDismiss}>{forms.length ? 'PAGAR DESPUÉS' : 'ACEPTAR'}</button>
         {feedback.invoice && <button type="button" className="secondary operation-feedback-print" disabled={busy} onClick={() => { onDismiss(); feedback.invoice(); }}>FACTURAR</button>}
         {feedback.printUrl && <TicketLink ref={forms.length ? null : printRef} className={`${forms.length ? 'secondary' : 'primary'} operation-feedback-print`} href={feedback.printUrl} onClick={onDismiss}>{feedback.printLabel || 'IMPRIMIR'}</TicketLink>}
         {/* Vista previa: abre el PDF en otra pestaña sin mandarlo a la impresora. */}
