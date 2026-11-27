@@ -2,6 +2,8 @@ import { pool } from '../config/database.js';
 import { fail, id, order, textRequired } from './pedidos.js';
 import * as sisfe from './sisfe.js';
 import { auditar } from './auditoria.js';
+import { numeroALetras } from './numero-letras.js';
+import { MAX_LINEAS, camposFactura, lineasImpresas, renderFacturaPreimpresa } from './factura-preimpresa-pdf.js';
 
 const UNIDAD_MEDIDA = 77;
 const CANCELACION_MAX_HORAS = 48;
@@ -103,12 +105,22 @@ function receptorDesdeCliente(cliente) {
 }
 
 // Con RUC el receptor es contribuyente; sin RUC se emite como innominado (consumidor final).
-function clasificarReceptor(receptor) {
-  if (!receptor.ruc) return { contribuyente: false, tipo_contribuyente: null, tipo_operacion: 2, ruc: null, razon_social: 'Sin Nombre' };
+// En la factura pre-impresa, sin RUC se conserva el nombre cargado (en la electrónica SIFEN exige «Sin Nombre»).
+function clasificarReceptor(receptor, preimpresa = false) {
+  if (!receptor.ruc) return { contribuyente: false, tipo_contribuyente: null, tipo_operacion: 2, ruc: null,
+    razon_social: (preimpresa && clip(receptor.razon_social || '', 150)) || 'Sin Nombre' };
   const ruc = normalizarRuc(receptor.ruc);
   const juridica = Number(ruc.split('-')[0]) >= 50000000;
   return { contribuyente: true, tipo_contribuyente: juridica ? 2 : 1, tipo_operacion: juridica ? 1 : 2, ruc,
     razon_social: textRequired(receptor.razon_social, 'La razón social del cliente') };
+}
+
+// ---- Modo de facturación ---------------------------------------------------
+
+// 'preimpresa' (hoja con triplicado en la impresora local) o 'electronica' (SISFE). Sin la columna, pre-impresa.
+export async function modoFacturacion(c = pool) {
+  const row = (await c.query('SELECT * FROM datos_restaurante WHERE iddatos_restaurante=1')).rows[0];
+  return row?.modo_facturacion === 'electronica' ? 'electronica' : 'preimpresa';
 }
 
 // ---- Precarga -------------------------------------------------------------
@@ -124,7 +136,11 @@ export async function precargarDesdePedido(c, pedidoId) {
   const pedido = await pedidoFacturable(c, pedidoId);
   const detalles = lineasDesdePedido(pedido);
   const sums = totales(detalles);
+  const modo = await modoFacturacion(c);
   return {
+    modo_facturacion: modo,
+    lineas_impresas: lineasImpresas(detalles).length,
+    max_lineas: MAX_LINEAS,
     fk_idpedido: pedido.idpedido,
     pedido: { idpedido: pedido.idpedido, estado: pedido.estado, tipo_entrega: pedido.tipo_entrega, numero_mesa: pedido.numero_mesa, monto_total: Number(pedido.monto_total) },
     cliente: receptorDesdeCliente(pedido.cliente),
@@ -171,21 +187,54 @@ export async function crearFactura(c, body, user) {
     celular: clip(sent.celular || '', 40)
   };
   if (receptor.fk_idcliente && !(await c.query('SELECT 1 FROM cliente WHERE idcliente=$1', [receptor.fk_idcliente])).rowCount) fail('Cliente no encontrado', 404);
-  const clase = clasificarReceptor(receptor);
+  const preimpresa = (await modoFacturacion(c)) === 'preimpresa';
+  const clase = clasificarReceptor(receptor, preimpresa);
+  if (preimpresa) {
+    const renglones = lineasImpresas(detalles).length;
+    if (renglones > MAX_LINEAS) fail(`La factura tiene ${renglones} renglones y la hoja pre-impresa admite ${MAX_LINEAS}. Dividí el pedido en dos facturas.`, 409);
+  }
 
   const cfg = (await c.query('UPDATE datos_restaurante SET numero_actual=numero_actual+1 WHERE iddatos_restaurante=1 RETURNING establecimiento,punto,numero_actual')).rows[0];
   const factura = (await c.query(`INSERT INTO factura(fk_idpedido,fk_idcliente,cliente_ruc,cliente_razon_social,cliente_direccion,cliente_email,cliente_celular,
-      contribuyente,tipo_contribuyente,tipo_operacion,establecimiento,punto,numero,total,base_gravada10,total_iva10,creado_por)
-    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17) RETURNING idfactura`,
+      contribuyente,tipo_contribuyente,tipo_operacion,establecimiento,punto,numero,total,base_gravada10,total_iva10,creado_por,estado,total_letra)
+    VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19) RETURNING idfactura`,
   [pedidoId, receptor.fk_idcliente, clase.ruc, clase.razon_social, receptor.direccion || null, receptor.email || null, receptor.celular || null,
     clase.contribuyente, clase.tipo_contribuyente, clase.tipo_operacion, cfg.establecimiento, cfg.punto, cfg.numero_actual,
-    sums.total, sums.base_gravada10, sums.total_iva10, user.login])).rows[0];
+    sums.total, sums.base_gravada10, sums.total_iva10, user.login, preimpresa ? 'emitida' : 'pendiente', numeroALetras(sums.total)])).rows[0];
   for (const line of detalles) {
     await c.query(`INSERT INTO factura_detalle(fk_idfactura,codigo,descripcion,unidad_medida,cantidad,precio_unitario,descuento,iva_tipo,iva_base,iva,subtotal,creado_por)
       VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
     [factura.idfactura, line.codigo, line.descripcion, line.unidad_medida, line.cantidad, line.precio_unitario, line.descuento, line.iva_tipo, line.iva_base, line.iva, line.subtotal, user.login]);
   }
-  return { idfactura: factura.idfactura };
+  return { idfactura: factura.idfactura, preimpresa };
+}
+
+// ---- Pre-impresa ------------------------------------------------------------
+
+export async function pdfPreimpresa(facturaId) {
+  const factura = await obtenerFactura(pool, facturaId);
+  if (factura.estado !== 'emitida') fail(factura.estado === 'cancelado' ? 'La factura está anulada' : 'Solo se imprimen en hoja pre-impresa las facturas emitidas', 409);
+  if (!factura.total_letra) factura.total_letra = numeroALetras(factura.total);
+  return { factura, pdf: await renderFacturaPreimpresa(camposFactura(factura), `Factura ${factura.numero_completo}`) };
+}
+
+// Anula una factura pre-impresa (la hoja se descarta a mano). El número no se reutiliza y el pedido se puede volver a facturar.
+export async function anularFacturaPreimpresa(facturaId, motivo, user) {
+  const reason = textRequired(motivo, 'El motivo');
+  if (reason.length < 5 || reason.length > 500) fail('El motivo debe tener entre 5 y 500 caracteres');
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const factura = (await client.query('SELECT * FROM factura WHERE idfactura=$1 FOR UPDATE', [id(facturaId)])).rows[0];
+    if (!factura) fail('Factura no encontrada', 404);
+    if (factura.estado !== 'emitida') fail('Solo se puede anular una factura pre-impresa emitida', 409);
+    await client.query("UPDATE factura SET estado='cancelado',fecha_cancelado=CURRENT_TIMESTAMP,cancelado_por=$2,motivo_cancelado=$3 WHERE idfactura=$1", [factura.idfactura, user.login, reason]);
+    await auditar(client, user, { accion: 'FACTURA_ANULADA', entidad: 'factura', id: factura.idfactura, motivo: reason,
+      antes: { estado: factura.estado, numero: `${factura.establecimiento}-${factura.punto}-${String(factura.numero).padStart(7, '0')}`, total: Number(factura.total), pedido: factura.fk_idpedido },
+      despues: { estado: 'cancelado' } });
+    await client.query('COMMIT');
+  } catch (error) { await client.query('ROLLBACK'); throw error; } finally { client.release(); }
+  return obtenerFactura(pool, facturaId);
 }
 
 // ---- SISFE ----------------------------------------------------------------

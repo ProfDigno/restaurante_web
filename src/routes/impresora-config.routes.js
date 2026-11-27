@@ -4,6 +4,7 @@ import JSZip from 'jszip';
 import { guardarConfigDefecto, leerConfigDefecto, leerConfigImpresora } from '../services/impresora-config.js';
 import { dateTime, renderTicket, restaurantInfo, sendPdf, writer } from '../services/ticket-pdf.js';
 import { pool } from '../config/database.js';
+import { datosEjemplo, renderFacturaPreimpresa } from '../services/factura-preimpresa-pdf.js';
 
 const router = Router();
 const route = fn => async (req, res, next) => {
@@ -41,6 +42,11 @@ router.get('/prueba.pdf', async (req, res, next) => {
     const data = { config, restaurante: await restaurantInfo(pool), pc: String(req.query.pc || '').slice(0, 60) };
     sendPdf(res, await renderTicket(pruebaLayout, data, 'Prueba de impresión', new Date(), config), 'prueba-impresion.pdf');
   } catch (error) { next(error); }
+});
+
+// Hoja de calibración de la factura pre-impresa: las tres copias con todos los campos y renglones llenos.
+router.get('/prueba-factura.pdf', async (req, res, next) => {
+  try { sendPdf(res, await renderFacturaPreimpresa(datosEjemplo(), 'Prueba de factura'), 'prueba-factura.pdf'); } catch (error) { next(error); }
 });
 
 // ZIP del agente de impresión para instalar en cada PC, con el origen de este sistema ya configurado.

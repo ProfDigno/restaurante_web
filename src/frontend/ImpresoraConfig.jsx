@@ -7,7 +7,7 @@ import './comanda-config.css';
 const json = (method, body) => ({ method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
 const fecha = value => value ? new Date(value).toLocaleString('es-PY', { dateStyle: 'short', timeStyle: 'short' }) : '—';
 const SIN_COMANDA = 'El servidor todavía no tiene el ticket de comanda: hay que reiniciarlo. La opción no se guardó.';
-const fila = t => ({ ...t, nombre_impresora: t.nombre_impresora || '', saltos_final: String(t.saltos_final) });
+const fila = t => ({ ...t, nombre_impresora: t.nombre_impresora || '', impresora_factura: t.impresora_factura || '', saltos_final: String(t.saltos_final) });
 
 function EstaPc({ setError, setNotice }) {
   const { listo, agente, terminal } = useTerminal();
@@ -17,6 +17,13 @@ function EstaPc({ setError, setNotice }) {
     try {
       await imprimirEnAgente(`/api/impresora-config/prueba.pdf?pc=${encodeURIComponent(terminal?.nombre || agente.equipo)}`, 'Prueba de impresión');
       setNotice(`Prueba enviada a ${terminal?.nombre_impresora || agente.impresoraPorDefecto || agente.predeterminadaWindows || 'la impresora por defecto'}.`);
+    } catch (cause) { setError(cause.message); } finally { setBusy(false); }
+  };
+  const probarFactura = async () => {
+    setBusy(true); setError(''); setNotice('');
+    try {
+      await imprimirEnAgente('/api/impresora-config/prueba-factura.pdf', 'Prueba de factura', terminal.impresora_factura);
+      setNotice(`Hoja de prueba de factura enviada a ${terminal.impresora_factura}. Ponela sobre una hoja pre-impresa para comparar.`);
     } catch (cause) { setError(cause.message); } finally { setBusy(false); }
   };
   const cambiarComanda = async event => {
@@ -37,7 +44,8 @@ function EstaPc({ setError, setNotice }) {
     </> : <>
       <div className="invoice-grid">
         <p><strong>PC:</strong> {agente.equipo}{terminal?.nombre && terminal.nombre !== agente.equipo ? ` (${terminal.nombre})` : ''}</p>
-        <p><strong>Impresora asignada:</strong> {terminal?.nombre_impresora || <span className="muted">ninguna — asignala abajo en Terminales</span>}</p>
+        <p><strong>Impresora de tickets:</strong> {terminal?.nombre_impresora || <span className="muted">ninguna — asignala abajo en Terminales</span>}</p>
+        <p><strong>Impresora de factura:</strong> {terminal?.impresora_factura || <span className="muted">ninguna — la factura se abre en el navegador</span>}</p>
         <p><strong>Agente:</strong> v{agente.version} · Java {agente.java}</p>
         <p><strong>Cola:</strong> {agente.cola.pendientes} pendientes · {agente.cola.errores} con error</p>
       </div>
@@ -50,6 +58,8 @@ function EstaPc({ setError, setNotice }) {
       <a className="secondary ticket-link" href="/api/impresora-config/agente.zip" download>Descargar agente de impresión</a>
       {agente && <a className="secondary ticket-link" href={`${AGENTE_URL}/`} target="_blank" rel="noopener noreferrer">Abrir panel del agente</a>}
       <a className="secondary ticket-link" href={urlConTerminal(`/api/impresora-config/prueba.pdf?pc=${encodeURIComponent(terminal?.nombre || agente?.equipo || '')}`)} target="_blank" rel="noopener noreferrer">Ver PDF de prueba</a>
+      <a className="secondary ticket-link" href="/api/impresora-config/prueba-factura.pdf" target="_blank" rel="noopener noreferrer">Ver prueba de factura</a>
+      {agente && terminal?.activo && terminal?.impresora_factura && <button type="button" className="secondary" disabled={busy} onClick={probarFactura}>{busy ? 'Enviando…' : 'Imprimir prueba de factura'}</button>}
       {agente && <button type="button" className="primary" disabled={busy} onClick={probar}>{busy ? 'Enviando…' : 'Imprimir prueba'}</button>}
     </div>
   </section>;
@@ -80,16 +90,21 @@ function Terminales({ setError, setNotice }) {
 
   return <section className="invoice-card">
     <div className="invoice-card-head"><h3>Terminales (PCs)</h3><button type="button" className="secondary" onClick={cargar}>Actualizar</button></div>
-    <p className="muted">Cada PC con el agente de impresión aparece sola al entrar al sistema. Asigná a cada una su impresora, papel y saltos finales, y marcá Comanda si tiene que imprimirla detrás de cada pedido.</p>
+    <p className="muted">Cada PC con el agente de impresión aparece sola al entrar al sistema. Asigná a cada una su impresora de tickets (papel y saltos finales), la impresora de factura (hoja pre-impresa con el triplicado) y marcá Comanda si tiene que imprimirla detrás de cada pedido.</p>
     {!items ? <p className="muted">Cargando…</p> : !items.length ? <p className="muted">Todavía no se registró ninguna PC. Instalá el agente en una PC y entrá al sistema desde ella.</p> :
-      <div className="catalog-table-wrap"><table className="catalog-table"><thead><tr><th>PC</th><th>Impresora</th><th>Papel</th><th>Saltos</th><th>Comanda</th><th>Activa</th><th>Última conexión</th><th /></tr></thead><tbody>
+      <div className="catalog-table-wrap"><table className="catalog-table"><thead><tr><th>PC</th><th>Impresora de tickets</th><th>Impresora de factura</th><th>Papel</th><th>Saltos</th><th>Comanda</th><th>Activa</th><th>Última conexión</th><th /></tr></thead><tbody>
         {items.map(t => {
           const impresoras = [...new Set([...(t.impresoras_detectadas || []), t.nombre_impresora].filter(Boolean))];
+          const impresorasFactura = [...new Set([...(t.impresoras_detectadas || []), t.impresora_factura].filter(Boolean))];
           return <tr key={t.idterminal} className={t.activo ? '' : 'inactive-row'}>
             <td><input aria-label={`Nombre de la PC ${t.equipo}`} value={t.nombre} maxLength={60} onChange={e => cambiar(t.idterminal, { nombre: e.target.value })} /><small>{t.equipo}{t.idterminal === actual?.idterminal ? ' · esta PC' : ''}</small></td>
             <td><select aria-label={`Impresora de ${t.nombre}`} value={t.nombre_impresora} onChange={e => cambiar(t.idterminal, { nombre_impresora: e.target.value })}>
               <option value="">Ninguna (navegador)</option>
               {impresoras.map(n => <option key={n} value={n}>{n}{(t.impresoras_detectadas || []).includes(n) ? '' : ' (no detectada)'}</option>)}
+            </select></td>
+            <td><select aria-label={`Impresora de factura de ${t.nombre}`} value={t.impresora_factura} onChange={e => cambiar(t.idterminal, { impresora_factura: e.target.value })}>
+              <option value="">Ninguna (navegador)</option>
+              {impresorasFactura.map(n => <option key={n} value={n}>{n}{(t.impresoras_detectadas || []).includes(n) ? '' : ' (no detectada)'}</option>)}
             </select></td>
             <td><select aria-label={`Papel de ${t.nombre}`} value={t.tamano_ticket} onChange={e => cambiar(t.idterminal, { tamano_ticket: Number(e.target.value) })}><option value={80}>80 mm (74 a 80)</option><option value={58}>58 mm</option></select></td>
             <td><input aria-label={`Saltos finales de ${t.nombre}`} type="number" min="0" max="30" style={{ width: 70 }} value={t.saltos_final} onChange={e => cambiar(t.idterminal, { saltos_final: e.target.value })} /></td>

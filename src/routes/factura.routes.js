@@ -3,9 +3,10 @@ import { pool } from '../config/database.js';
 import { operation, integer, id, fail } from '../services/pedidos.js';
 import * as sisfe from '../services/sisfe.js';
 import {
-  cancelarFactura, confirmarFactura, crearFactura, digitoVerificador, emitirBorrador, facturaDelPedido, kudeDe,
-  obtenerFactura, partesRuc, precargarDesdePedido, refrescarEstado
+  anularFacturaPreimpresa, cancelarFactura, confirmarFactura, crearFactura, digitoVerificador, emitirBorrador, facturaDelPedido, kudeDe,
+  modoFacturacion, obtenerFactura, partesRuc, pdfPreimpresa, precargarDesdePedido, refrescarEstado
 } from '../services/factura.js';
+import { sendPdf } from '../services/ticket-pdf.js';
 
 const router = Router();
 const route = fn => async (req, res, next) => {
@@ -16,7 +17,7 @@ const route = fn => async (req, res, next) => {
   }
 };
 const validDate = value => /^\d{4}-\d{2}-\d{2}$/.test(value || '') && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
-const ESTADOS = ['pendiente', 'borrador', 'enviado', 'aprobado', 'rechazado', 'cancelado', 'error'];
+const ESTADOS = ['pendiente', 'borrador', 'enviado', 'aprobado', 'rechazado', 'cancelado', 'error', 'emitida'];
 const numeroCompleto = "f.establecimiento || '-' || f.punto || '-' || lpad(f.numero::text, 7, '0')";
 
 router.get('/', route(async req => {
@@ -37,6 +38,8 @@ router.get('/', route(async req => {
   return { items, total, page, pageSize: size, totalPages: Math.max(1, Math.ceil(total / size)) };
 }));
 
+router.get('/config', route(async () => ({ modo_facturacion: await modoFacturacion() })));
+
 router.get('/clientes', route(async req => {
   const search = `%${String(req.query.search || '').trim()}%`;
   return { items: (await pool.query(`SELECT idcliente, nombre_completo, razon_social, ruc, direccion, email, telefono FROM cliente
@@ -50,6 +53,8 @@ router.get('/ruc/:ruc', route(async req => {
   if (!parts) fail('RUC inválido: usá el formato 1234567-8');
   const dv = digitoVerificador(parts.base);
   if (parts.dv !== null && parts.dv !== dv) return { encontrado: false, dv_correcto: false, dv_esperado: dv, mensaje: `El dígito verificador no coincide (debería ser ${dv})` };
+  // Con factura pre-impresa no se consulta a SIFEN: alcanza con el dígito verificador.
+  if (await modoFacturacion() === 'preimpresa') return { local: true, dv_correcto: true, ruc_completo: `${parts.base}-${dv}`, mensaje: `Dígito verificador correcto: ${parts.base}-${dv}` };
   return { dv_correcto: true, ruc_completo: `${parts.base}-${dv}`, ...await sisfe.consultarRuc(parts.base) };
 }));
 
@@ -67,15 +72,24 @@ router.get('/:id/kude.pdf', async (req, res, next) => {
   } catch (error) { next(error); }
 });
 
+// Hoja pre-impresa con el triplicado, para la impresora de factura de la PC.
+router.get('/:id/preimpresa.pdf', async (req, res, next) => {
+  try {
+    const { factura, pdf } = await pdfPreimpresa(id(req.params.id));
+    sendPdf(res, pdf, `factura-${factura.numero_completo}.pdf`);
+  } catch (error) { next(error); }
+});
+
 router.get('/:id', route(req => obtenerFactura(pool, req.params.id)));
 
 router.post('/', route(async req => {
-  const { idfactura } = await operation(req, c => crearFactura(c, req.body, req.user));
-  return emitirBorrador(idfactura);
+  const { idfactura, preimpresa } = await operation(req, c => crearFactura(c, req.body, req.user));
+  return preimpresa ? obtenerFactura(pool, idfactura) : emitirBorrador(idfactura);
 }));
 router.post('/:id/reintentar', route(req => emitirBorrador(id(req.params.id))));
 router.post('/:id/confirmar', route(req => confirmarFactura(id(req.params.id))));
 router.post('/:id/estado', route(req => refrescarEstado(id(req.params.id), req.user)));
+router.post('/:id/anular', route(req => anularFacturaPreimpresa(id(req.params.id), req.body?.motivo, req.user)));
 router.post('/:id/cancelar', route(req => cancelarFactura(id(req.params.id), req.body?.motivo, req.user)));
 
 export default router;

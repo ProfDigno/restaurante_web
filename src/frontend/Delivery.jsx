@@ -43,7 +43,7 @@ function MotoLogo({ size = 96 }) {
 
 function Login({ onLogged }) {
   const [nombre, setNombre] = useState('');
-  const [usuario, setUsuario] = useState(() => localStorage.getItem('delivery_usuario') || '');
+  const [usuario, setUsuario] = useState(() => (localStorage.getItem('delivery_usuario') || '').toUpperCase());
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
@@ -84,8 +84,8 @@ function Login({ onLogged }) {
       <form className="dl-login-form" onSubmit={e => { e.preventDefault(); if (pin.length === 4) submit(pin); else pinInput.current?.focus(); }}>
         <label className="dl-field">
           <span>Usuario</span>
-          <input ref={userInput} value={usuario} onChange={e => { setUsuario(e.target.value.replace(/\s/g, '')); setError(''); }}
-            autoCapitalize="none" autoCorrect="off" autoComplete="username" maxLength={50} placeholder="Tu usuario"
+          <input ref={userInput} value={usuario} onChange={e => { setUsuario(e.target.value.replace(/\s/g, '').toUpperCase()); setError(''); }}
+            autoCapitalize="characters" autoCorrect="off" autoComplete="username" maxLength={50} placeholder="Tu usuario"
             onKeyDown={e => { if (e.key === 'Enter') { e.preventDefault(); pinInput.current?.focus(); } }} />
         </label>
         <div className="dl-pin-label">PIN</div>

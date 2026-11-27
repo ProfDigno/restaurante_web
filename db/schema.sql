@@ -2495,3 +2495,22 @@ ALTER TABLE rendicion_delivery ADD COLUMN fk_idmaquina_pos integer REFERENCES ma
 ALTER TABLE rendicion_delivery ADD COLUMN pos_sistema numeric(14,0) NOT NULL DEFAULT 0 CHECK (pos_sistema >= 0);
 ALTER TABLE rendicion_delivery ADD COLUMN pos_informado numeric(14,0) CHECK (pos_informado >= 0);
 ALTER TABLE rendicion_delivery ADD CONSTRAINT rendicion_delivery_pos_valido CHECK ((fk_idmaquina_pos IS NULL) = (pos_informado IS NULL));
+
+-- Factura pre-impresa: modo de facturación, total en letras, estado emitida e impresora de factura por PC.
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'datos_restaurante'::regclass AND attname = 'modo_facturacion' AND NOT attisdropped) THEN
+    ALTER TABLE datos_restaurante ADD COLUMN modo_facturacion varchar(12) NOT NULL DEFAULT 'preimpresa'
+      CHECK (modo_facturacion IN ('preimpresa', 'electronica'));
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'factura'::regclass AND attname = 'total_letra' AND NOT attisdropped) THEN
+    ALTER TABLE factura ADD COLUMN total_letra text;
+  END IF;
+  IF NOT EXISTS (SELECT 1 FROM pg_attribute WHERE attrelid = 'terminal'::regclass AND attname = 'impresora_factura' AND NOT attisdropped) THEN
+    ALTER TABLE terminal ADD COLUMN impresora_factura text;
+  END IF;
+END $$;
+
+ALTER TABLE factura DROP CONSTRAINT IF EXISTS factura_estado_check;
+ALTER TABLE factura ADD CONSTRAINT factura_estado_check
+  CHECK (estado IN ('pendiente', 'borrador', 'enviado', 'aprobado', 'rechazado', 'cancelado', 'error', 'emitida'));

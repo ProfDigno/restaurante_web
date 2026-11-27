@@ -2,17 +2,25 @@ import { useEffect, useState } from 'react';
 import TopbarSlot from './TopbarSlot.jsx';
 import { api, mutate } from './pedidos-api.js';
 import { formatMoney } from './formatters.js';
+import { imprimirFactura, impresoraFactura } from './terminal.js';
 import './factura.css';
 
 const dateTime = value => value ? new Date(value).toLocaleString('es-PY', { dateStyle: 'short', timeStyle: 'short' }) : '—';
-const ESTADOS = { pendiente: 'Pendiente', borrador: 'Borrador', enviado: 'Enviada', aprobado: 'Aprobada', rechazado: 'Rechazada', cancelado: 'Cancelada', error: 'Con error' };
+const ESTADOS = { pendiente: 'Pendiente', borrador: 'Borrador', enviado: 'Enviada', aprobado: 'Aprobada', rechazado: 'Rechazada', cancelado: 'Anulada', error: 'Con error', emitida: 'Emitida' };
 const emptyClient = { fk_idcliente: null, ruc: '', razon_social: '', direccion: '', email: '', celular: '' };
 
 const Estado = ({ value }) => <span className={`invoice-state invoice-state-${value}`}>{ESTADOS[value] || value}</span>;
 
+// Imprime la hoja pre-impresa (impresora de factura de esta PC o PDF en el navegador) y devuelve el aviso a mostrar.
+async function imprimir(factura) {
+  const impresora = await imprimirFactura(factura.idfactura, `Factura ${factura.numero_completo}`);
+  return impresora ? `Factura ${factura.numero_completo} enviada a ${impresora}.` : 'Esta PC no tiene impresora de factura asignada: se abrió el PDF para imprimir.';
+}
+
 function clientFrom(factura) {
+  const nombre = factura.contribuyente || factura.cliente_razon_social !== 'Sin Nombre';
   return {
-    fk_idcliente: factura.fk_idcliente, ruc: factura.cliente_ruc || '', razon_social: factura.contribuyente ? factura.cliente_razon_social : '',
+    fk_idcliente: factura.fk_idcliente, ruc: factura.cliente_ruc || '', razon_social: nombre ? factura.cliente_razon_social : '',
     direccion: factura.cliente_direccion || '', email: factura.cliente_email || '', celular: factura.cliente_celular || ''
   };
 }
@@ -54,6 +62,9 @@ function FacturaForm({ pedidoId, facturaId, onBack }) {
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
+  const [modo, setModo] = useState(null);
+  useEffect(() => { api('/api/facturas/config').then(data => setModo(data.modo_facturacion)).catch(() => setModo('preimpresa')); }, []);
 
   const show = data => { setFactura(data); setBorrador(null); setCliente(clientFrom(data)); };
   useEffect(() => {
@@ -74,6 +85,7 @@ function FacturaForm({ pedidoId, facturaId, onBack }) {
     if (busy) return;
     setBusy(true);
     setError('');
+    setNotice('');
     try { await action(); return true; } catch (cause) {
       setError(cause.message);
       // Si SISFE falló, la factura ya quedó guardada: se vuelve a cargar para mostrar su estado.
@@ -94,7 +106,13 @@ function FacturaForm({ pedidoId, facturaId, onBack }) {
   const save = () => run(async () => {
     const data = await mutate('/api/facturas', { fk_idpedido: pedidoId, cliente });
     show(data);
+    // Pre-impresa: si esta PC tiene impresora de factura sale directo; si no, queda el botón (el navegador bloquea abrir el PDF solo).
+    if (data.estado === 'emitida') {
+      if (impresoraFactura()) setNotice(await imprimir(data).catch(cause => { throw new Error(`Factura ${data.numero_completo} emitida, pero no se imprimió: ${cause.message}`); }));
+      else setNotice(`Factura ${data.numero_completo} emitida. Tocá «Imprimir factura» para abrir la hoja.`);
+    }
   });
+  const print = () => run(async () => setNotice(await imprimir(factura)));
   const post = (path, body) => run(async () => show(await mutate(`/api/facturas/${factura.idfactura}/${path}`, body)));
 
   if (loading) return <p className="muted">Cargando…</p>;
@@ -105,17 +123,23 @@ function FacturaForm({ pedidoId, facturaId, onBack }) {
   const total = Number(source.total);
   const iva = Number(source.total_iva10);
   const aprobada = factura?.estado === 'aprobado';
+  const emitida = factura?.estado === 'emitida';
+  const preimpresa = factura ? emitida || (factura.estado === 'cancelado' && !factura.cdc) : (borrador?.modo_facturacion || modo) === 'preimpresa';
+  const sobranLineas = !factura && preimpresa && borrador?.lineas_impresas > borrador?.max_lineas;
 
   return <div className="invoice-page">
     <div className="invoice-heading">
       <div>
         <button type="button" className="secondary" onClick={onBack}>← Facturas</button>
-        <h2>{factura ? `Factura ${factura.numero_completo}` : 'Nueva factura electrónica'}</h2>
+        <h2>{factura ? `Factura ${factura.numero_completo}` : preimpresa ? 'Nueva factura' : 'Nueva factura electrónica'}</h2>
         <p className="muted">Pedido #{factura ? factura.fk_idpedido : borrador.pedido.idpedido}{borrador?.pedido.numero_mesa ? ` · Mesa ${borrador.pedido.numero_mesa}` : ''}{factura ? ` · ${dateTime(factura.fecha_emision)}` : ''}</p>
       </div>
       {factura && <Estado value={factura.estado} />}
     </div>
     {error && <div className="alert error" role="alert">{error}</div>}
+    {notice && <div className="alert success" role="status">{notice}</div>}
+    {sobranLineas && <div className="alert error" role="alert">La factura tiene {borrador.lineas_impresas} renglones (ya juntando los productos iguales) y la hoja pre-impresa admite {borrador.max_lineas}. Dividí el pedido para facturarlo en dos.</div>}
+    {factura?.estado === 'cancelado' && factura.motivo_cancelado && <div className="alert info" role="status">Anulada por {factura.cancelado_por} · {dateTime(factura.fecha_cancelado)} · {factura.motivo_cancelado}</div>}
     {factura?.respuesta_mensaje && <div className={`alert ${factura.estado === 'error' || factura.estado === 'rechazado' ? 'error' : 'info'}`}>{factura.respuesta_codigo ? `${factura.respuesta_codigo} · ` : ''}{factura.respuesta_mensaje}</div>}
     {borrador && !borrador.cuadra && <div className="alert error" role="alert">El total de la factura ({formatMoney(borrador.total)}) no coincide con el del pedido ({formatMoney(borrador.pedido.monto_total)}). No se puede emitir.</div>}
 
@@ -123,14 +147,14 @@ function FacturaForm({ pedidoId, facturaId, onBack }) {
       <div className="invoice-card-head"><h3>Cliente</h3>{editable && <button type="button" className="secondary" onClick={() => setPicker(true)}>Cambiar cliente</button>}</div>
       <div className="invoice-grid">
         <label>RUC<span className="invoice-ruc"><input value={cliente.ruc} disabled={!editable} maxLength={11} placeholder="Sin RUC: consumidor final" onChange={event => { setField('ruc', event.target.value); setRuc(null); }} />{editable && <button type="button" className="secondary" disabled={busy || !cliente.ruc.trim()} onClick={verifyRuc}>Verificar RUC</button>}</span></label>
-        <label>Razón social / nombre<input value={cliente.ruc ? cliente.razon_social : 'Sin Nombre'} disabled={!editable || !cliente.ruc} maxLength={150} onChange={event => setField('razon_social', event.target.value)} /></label>
+        <label>Razón social / nombre<input value={cliente.ruc || preimpresa ? cliente.razon_social : 'Sin Nombre'} disabled={!editable || (!cliente.ruc && !preimpresa)} placeholder={preimpresa ? 'Sin Nombre' : undefined} maxLength={150} onChange={event => setField('razon_social', event.target.value)} /></label>
         <label>Dirección<input value={cliente.direccion} disabled={!editable} maxLength={250} onChange={event => setField('direccion', event.target.value)} /></label>
         <label>Correo<input type="email" value={cliente.email} disabled={!editable} maxLength={150} onChange={event => setField('email', event.target.value)} /></label>
         <label>Celular<input value={cliente.celular} disabled={!editable} maxLength={40} onChange={event => setField('celular', event.target.value)} /></label>
       </div>
-      {!cliente.ruc && <p className="muted">Sin RUC se emite como innominado (consumidor final), con el nombre «Sin Nombre».</p>}
-      {ruc && <div className={`alert ${ruc.encontrado && ruc.activo ? 'success' : 'error'}`} role="status">
-        {ruc.encontrado
+      {!cliente.ruc && <p className="muted">{preimpresa ? 'Sin RUC se emite a consumidor final, con el nombre cargado (o «Sin Nombre» si queda vacío).' : 'Sin RUC se emite como innominado (consumidor final), con el nombre «Sin Nombre».'}</p>}
+      {ruc && <div className={`alert ${(ruc.local && ruc.dv_correcto) || (ruc.encontrado && ruc.activo) ? 'success' : 'error'}`} role="status">
+        {ruc.local ? <>{ruc.mensaje}{ruc.ruc_completo !== cliente.ruc && <> <button type="button" className="secondary" onClick={() => setField('ruc', ruc.ruc_completo)}>Usar {ruc.ruc_completo}</button></>}</> : ruc.encontrado
           ? <>RUC encontrado: <strong>{ruc.razon_social}</strong> · {ruc.estado}{ruc.activo ? '' : ' (no se puede facturar a un RUC inactivo)'}
             {ruc.razon_social && ruc.razon_social !== cliente.razon_social && <> <button type="button" className="secondary" onClick={() => setCliente(current => ({ ...current, ruc: ruc.ruc_completo || current.ruc, razon_social: ruc.razon_social }))}>Usar esta razón social</button></>}</>
           : ruc.mensaje}
@@ -147,7 +171,9 @@ function FacturaForm({ pedidoId, facturaId, onBack }) {
 
     {factura?.cdc && <p className="muted invoice-cdc">CDC: {factura.cdc}</p>}
     <div className="invoice-actions">
-      {editable && <button type="button" className="primary" disabled={busy || !borrador.cuadra} onClick={save}>{busy ? 'Guardando…' : 'Guardar factura (borrador)'}</button>}
+      {editable && <button type="button" className="primary" disabled={busy || !borrador.cuadra || sobranLineas || !modo} onClick={save}>{busy ? 'Guardando…' : preimpresa ? 'Emitir factura' : 'Guardar factura (borrador)'}</button>}
+      {emitida && <button type="button" className="primary" disabled={busy} onClick={print}>{busy ? 'Enviando…' : 'Imprimir factura'}</button>}
+      {emitida && <button type="button" className="secondary danger-text" disabled={busy} onClick={() => setCancel('')}>Anular factura</button>}
       {factura?.estado === 'error' && <button type="button" className="primary" disabled={busy} onClick={() => post('reintentar')}>{busy ? 'Enviando…' : 'Reintentar'}</button>}
       {factura?.estado === 'borrador' && <button type="button" className="primary" disabled={busy} onClick={() => post('confirmar')}>{busy ? 'Enviando a SIFEN…' : 'Confirmar y enviar a SIFEN'}</button>}
       {factura?.cdc && <a className="secondary" href={`/api/facturas/${factura.idfactura}/kude.pdf`} target="_blank" rel="noopener noreferrer">Imprimir KUDE</a>}
@@ -156,13 +182,13 @@ function FacturaForm({ pedidoId, facturaId, onBack }) {
     </div>
 
     {picker && <ClientePicker onClose={() => setPicker(false)} onPick={item => { setCliente(item); setRuc(null); setPicker(false); }} />}
-    {cancel !== null && <div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true" aria-label="Cancelar factura">
-      <div className="modal-head"><h2>Cancelar factura</h2><button type="button" className="modal-close" disabled={busy} onClick={() => setCancel(null)}>×</button></div>
-      <form className="modal-form" onSubmit={event => { event.preventDefault(); post('cancelar', { motivo: cancel }).then(done => { if (done) setCancel(null); }); }}>
-        <p>Se cancela la factura {factura.numero_completo} en SIFEN. Solo se puede dentro de las 48 horas de emitida.</p>
+    {cancel !== null && <div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true" aria-label={emitida ? 'Anular factura' : 'Cancelar factura'}>
+      <div className="modal-head"><h2>{emitida ? 'Anular factura' : 'Cancelar factura'}</h2><button type="button" className="modal-close" disabled={busy} onClick={() => setCancel(null)}>×</button></div>
+      <form className="modal-form" onSubmit={event => { event.preventDefault(); post(emitida ? 'anular' : 'cancelar', { motivo: cancel }).then(done => { if (done) setCancel(null); }); }}>
+        <p>{emitida ? `Se anula la factura ${factura.numero_completo}: guardá o destruí las tres copias impresas. El número no se vuelve a usar y el pedido se puede facturar de nuevo.` : `Se cancela la factura ${factura.numero_completo} en SIFEN. Solo se puede dentro de las 48 horas de emitida.`}</p>
         <label>Motivo<textarea required minLength={5} maxLength={500} value={cancel} onChange={event => setCancel(event.target.value)} /></label>
         {error && <div className="alert error" role="alert">{error}</div>}
-        <div className="modal-actions"><button type="button" className="secondary" disabled={busy} onClick={() => setCancel(null)}>Volver</button><button className="primary" disabled={busy}>{busy ? 'Cancelando…' : 'Cancelar factura'}</button></div>
+        <div className="modal-actions"><button type="button" className="secondary" disabled={busy} onClick={() => setCancel(null)}>Volver</button><button className="primary" disabled={busy}>{busy ? 'Guardando…' : emitida ? 'Anular factura' : 'Cancelar factura'}</button></div>
       </form>
     </div></div>}
   </div>;
@@ -177,6 +203,7 @@ function FacturaLista({ onOpen }) {
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
+  const [notice, setNotice] = useState('');
 
   useEffect(() => {
     let live = true;
@@ -199,6 +226,7 @@ function FacturaLista({ onOpen }) {
     </TopbarSlot>
     <TopbarSlot name="sub"><span>{data.total} facturas · se emiten desde el botón Facturar de un pedido</span></TopbarSlot>
     {error && <div className="alert error" role="alert">{error}</div>}
+    {notice && <div className="alert success" role="status">{notice}</div>}
     <div className="catalog-table-wrap"><table className="catalog-table"><thead><tr><th>Fecha</th><th>Número</th><th>Cliente</th><th className="numeric-cell">Total</th><th>Estado</th><th>Acciones</th></tr></thead><tbody>
       {loading ? <tr><td colSpan="6" className="table-loading">Cargando…</td></tr> : !data.items.length ? <tr><td colSpan="6" className="table-empty">Sin facturas para estos filtros</td></tr>
         : data.items.map(item => <tr key={item.idfactura}>
@@ -207,7 +235,7 @@ function FacturaLista({ onOpen }) {
           <td>{item.cliente_razon_social}<small>{item.cliente_ruc ? `RUC ${item.cliente_ruc}` : 'Sin RUC'}</small></td>
           <td className="numeric-cell"><strong>{formatMoney(item.total)}</strong></td>
           <td><Estado value={item.estado} /></td>
-          <td><div className="invoice-row-actions"><button type="button" className="edit-button" onClick={() => onOpen(item.idfactura)}>Ver</button>{item.cdc && <a className="edit-button" href={`/api/facturas/${item.idfactura}/kude.pdf`} target="_blank" rel="noopener noreferrer">Imprimir</a>}</div></td>
+          <td><div className="invoice-row-actions"><button type="button" className="edit-button" onClick={() => onOpen(item.idfactura)}>Ver</button>{item.cdc && <a className="edit-button" href={`/api/facturas/${item.idfactura}/kude.pdf`} target="_blank" rel="noopener noreferrer">Imprimir</a>}{item.estado === 'emitida' && <button type="button" className="edit-button" onClick={() => { setError(''); setNotice(''); imprimir(item).then(setNotice).catch(cause => setError(cause.message)); }}>Imprimir</button>}</div></td>
         </tr>)}
     </tbody></table></div>
     <div className="catalog-footer"><span>Página {page} de {data.totalPages}</span><button className="page-button" disabled={loading || page === 1} onClick={() => setPage(page - 1)}>Anterior</button><button className="page-button" disabled={loading || page >= data.totalPages} onClick={() => setPage(page + 1)}>Siguiente</button></div>

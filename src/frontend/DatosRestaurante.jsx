@@ -28,6 +28,7 @@ export default function DatosRestaurante() {
   };
 
   if (!form) return error ? <div className="alert error" role="alert">{error}</div> : <p className="muted">Cargando…</p>;
+  const electronica = form.modo_facturacion === 'electronica';
   return <form className="invoice-page" onSubmit={event => { event.preventDefault(); save(false); }}>
     {error && <div className="alert error" role="alert">{error}</div>}
     {notice && <div className="alert success" role="status">{notice}</div>}
@@ -47,16 +48,29 @@ export default function DatosRestaurante() {
     </section>
 
     <section className="invoice-card">
+      <div className="invoice-card-head"><h3>Facturación</h3></div>
+      <div className="invoice-grid">
+        <label>Modo de facturación<select value={form.modo_facturacion || 'preimpresa'} onChange={set('modo_facturacion')}>
+          <option value="preimpresa">Pre-impresa · hoja con triplicado en la impresora de cada PC</option>
+          <option value="electronica">Electrónica · SISFE / SIFEN</option>
+        </select></label>
+      </div>
+      <p className="muted">{electronica
+        ? 'Las facturas se envían a SIFEN por SISFE y se imprime el KuDE.'
+        : 'Las facturas se imprimen en la hoja pre-impresa (original, duplicado y triplicado) con la impresora de factura asignada a cada PC en Configuración → Impresora. No se envían a SIFEN.'}</p>
+    </section>
+
+    <section className="invoice-card">
       <div className="invoice-card-head"><h3>Numeración de facturas</h3></div>
       <div className="invoice-grid">
         <label>Establecimiento<input value={form.establecimiento} maxLength={3} inputMode="numeric" onChange={set('establecimiento')} /></label>
         <label>Punto de expedición<input value={form.punto} maxLength={3} inputMode="numeric" onChange={set('punto')} /></label>
         <label>Último número emitido<input value={form.numero_actual} inputMode="numeric" onChange={set('numero_actual')} /></label>
       </div>
-      <p className="muted">La próxima factura será {form.establecimiento}-{form.punto}-{String(Number(form.numero_actual || 0) + 1).padStart(7, '0')}. El número se controla desde el sistema; SISFE rechaza los repetidos.</p>
+      <p className="muted">La próxima factura será {form.establecimiento}-{form.punto}-{String(Number(form.numero_actual || 0) + 1).padStart(7, '0')}. {electronica ? 'El número se controla desde el sistema; SISFE rechaza los repetidos.' : 'Tiene que coincidir con el número de la próxima hoja pre-impresa cargada en la impresora.'}</p>
     </section>
 
-    <section className="invoice-card">
+    {electronica && <section className="invoice-card">
       <div className="invoice-card-head"><h3>Conexión con SISFE</h3></div>
       <div className="invoice-grid">
         <label>URL del servidor<input value={form.sisfe_url} maxLength={250} placeholder="https://dominio.sisfe.com.py" onChange={set('sisfe_url')} /></label>
@@ -65,11 +79,11 @@ export default function DatosRestaurante() {
         <label>Ambiente<select value={form.ambiente} onChange={set('ambiente')}><option value="prueba">Prueba</option><option value="produccion">Producción</option></select></label>
       </div>
       <p className="muted">La API se consulta en {form.sisfe_url ? `${form.sisfe_url.replace(/\/+$/, '')}/api/${form.sisfe_tenant || '<tenant>'}` : 'URL/api/<tenant>'}. La API Key se guarda solo en el servidor.</p>
-    </section>
+    </section>}
 
     <div className="invoice-actions">
       <button className="primary" disabled={busy}>{busy ? 'Guardando…' : 'Guardar'}</button>
-      <button type="button" className="secondary" disabled={busy} onClick={() => save(true)}>Guardar y probar conexión</button>
+      {electronica && <button type="button" className="secondary" disabled={busy} onClick={() => save(true)}>Guardar y probar conexión</button>}
     </div>
   </form>;
 }

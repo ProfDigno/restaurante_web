@@ -14,7 +14,7 @@ const validate = (body) => {
     nombre_completo: String(body?.nombre_completo || '').trim(),
     telefono: String(body?.telefono || '').trim() || null,
     activo: body?.activo !== false,
-    usuario: String(body?.usuario || '').trim() || null,
+    usuario: String(body?.usuario || '').trim().toUpperCase() || null, // el usuario del entregador siempre en mayúsculas
     password: String(body?.password || '')
   };
   if (!values.nombre_completo) return 'El nombre completo es obligatorio';

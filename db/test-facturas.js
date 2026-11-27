@@ -86,7 +86,7 @@ try {
   await call('/api/datos-restaurante/probar-conexion', { method: 'POST', status: 409 });
   ok(true, 'Probar la conexión sin configurar pide configurar SISFE');
   const config = { razon_social: 'RESTAURANTE SA', nombre_fantasia: 'Resto', ruc: '80012345', timbrado: '12345678', direccion: 'Calle 1', ciudad: 'Asunción', telefono: '021', email: 'a@b.py',
-    establecimiento: '001', punto: '001', numero_actual: 0, sisfe_url: sisfeUrl, sisfe_tenant: 'tenant-test', sisfe_api_key: KEY, ambiente: 'prueba' };
+    establecimiento: '001', punto: '001', numero_actual: 0, sisfe_url: sisfeUrl, sisfe_tenant: 'tenant-test', sisfe_api_key: KEY, ambiente: 'prueba', modo_facturacion: 'electronica' };
   const guardado = await call('/api/datos-restaurante', { method: 'PUT', body: config });
   ok(guardado.sisfe_api_key_configurada && !('sisfe_api_key' in guardado) && /^80012345-\d$/.test(guardado.ruc), 'Guarda la configuración, completa el dígito del RUC y oculta la API Key');
   await call('/api/datos-restaurante', { method: 'PUT', body: { ...config, sisfe_api_key: '', ruc: '80012345-0', establecimiento: '1' }, status: 400 });
@@ -201,6 +201,47 @@ try {
   ok(pre5.borrador.cuadra && pre5.borrador.total === Number(pedido5.monto_total) && pre5.borrador.detalles.reduce((s, l) => s + l.cantidad, 0) === 3 && pre5.borrador.detalles.length === 2, 'El descuento se reparte por unidad: una línea se divide y el total cuadra al guaraní');
   const f5 = await post('/api/facturas', { fk_idpedido: pedido5.idpedido, cliente: pre5.borrador.cliente });
   ok(Number(f5.total) === Number(pedido5.monto_total), 'Factura con descuento por el mismo total del pedido');
+
+  // Factura pre-impresa (triplicado en la impresora local, sin SISFE)
+  const pdfDe = async path => { const r = await fetch(base + path, { headers: { Cookie: cookies.admin } }); return { r, body: Buffer.from(await r.arrayBuffer()) }; };
+  const numeroActual = Number((await call('/api/datos-restaurante')).numero_actual);
+  await call('/api/datos-restaurante', { method: 'PUT', body: { ...config, sisfe_api_key: '', numero_actual: numeroActual, modo_facturacion: 'otro' }, status: 400 });
+  await call('/api/datos-restaurante', { method: 'PUT', body: { ...config, sisfe_api_key: '', numero_actual: numeroActual, modo_facturacion: 'preimpresa' } });
+  ok((await call('/api/facturas/config')).modo_facturacion === 'preimpresa', 'Cambia el modo de facturación a pre-impresa');
+  const pedidosSisfe = sisfe.requests.length;
+  const rucLocal = await call('/api/facturas/ruc/4303489');
+  ok(rucLocal.local && rucLocal.dv_correcto && rucLocal.ruc_completo === '4303489-6' && sisfe.requests.length === pedidosSisfe, 'En pre-impresa el RUC se verifica solo con el dígito, sin SISFE');
+  const pedido6 = await crearPedido(cliente.idcliente, 1, { detalles: [{ fk_idproducto_menu: drink.idproducto_menu, cantidad: 1, precio_venta: 1 }, { fk_idproducto_menu: drink.idproducto_menu, cantidad: 2, precio_venta: 1 }] });
+  const pre6 = await call(`/api/facturas/desde-pedido/${pedido6.idpedido}`);
+  ok(pre6.borrador.modo_facturacion === 'preimpresa' && pre6.borrador.lineas_impresas === 1 && pre6.borrador.max_lineas === 12, 'La precarga informa el modo y junta los productos iguales en un renglón');
+  const f6 = await post('/api/facturas', { fk_idpedido: pedido6.idpedido, cliente: pre6.borrador.cliente });
+  ok(f6.estado === 'emitida' && !f6.cdc && f6.total_letra === 'CUATRO MIL QUINIENTOS' && sisfe.requests.length === pedidosSisfe, 'Emite la factura pre-impresa sin SISFE, con el total en letras');
+  const hoja = await pdfDe(`/api/facturas/${f6.idfactura}/preimpresa.pdf`);
+  ok(hoja.r.status === 200 && hoja.r.headers.get('content-type') === 'application/pdf' && hoja.body.subarray(0, 4).toString() === '%PDF' && hoja.body.toString('latin1').includes('/MediaBox [0 0 650 1000]'), 'PDF pre-impreso de una hoja de 650 × 1000 pt');
+  const { camposFactura } = await import('../src/services/factura-preimpresa-pdf.js');
+  const campos = camposFactura(await call(`/api/facturas/${f6.idfactura}`));
+  ok(campos.items.length === 1 && campos.items[0].cantidad === 3 && campos.items[0].subtotal === 4500 && campos.cliente === `${cliente.idcliente}-CLIENTE FACTURA SA` && campos.ttiva5 === 0 && campos.ttiva10 === Number(f6.total_iva10) && campos.condicion === 'CONTADO' && /^\d{4}-\d{2}-\d{2}$/.test(campos.emision), 'Los campos impresos siguen al reporte original');
+  await post(`/api/facturas/${f6.idfactura}/anular`, { motivo: 'no' }, { status: 400 });
+  const anulada = await post(`/api/facturas/${f6.idfactura}/anular`, { motivo: 'Hoja trabada en la impresora' });
+  ok(anulada.estado === 'cancelado' && anulada.motivo_cancelado === 'Hoja trabada en la impresora', 'Anula la factura pre-impresa con motivo');
+  await post(`/api/facturas/${f6.idfactura}/anular`, { motivo: 'Otra vez' }, { status: 409 });
+  ok((await pdfDe(`/api/facturas/${f6.idfactura}/preimpresa.pdf`)).r.status === 409, 'Una factura anulada no se vuelve a imprimir');
+  const auditAnulada = (await pool.query("SELECT motivo FROM auditoria WHERE accion='FACTURA_ANULADA' AND id_entidad=$1", [f6.idfactura])).rows;
+  ok(auditAnulada.length === 1, 'La anulación queda en la auditoría');
+  const f6b = await post('/api/facturas', { fk_idpedido: pedido6.idpedido, cliente: { ...pre6.borrador.cliente, ruc: '', razon_social: 'Juan Pérez' } });
+  ok(f6b.estado === 'emitida' && f6b.numero === f6.numero + 1 && f6b.cliente_razon_social === 'Juan Pérez' && !f6b.contribuyente, 'El pedido anulado se refactura con otro número y sin RUC conserva el nombre');
+  const prueba = await pdfDe('/api/impresora-config/prueba-factura.pdf');
+  ok(prueba.r.status === 200 && prueba.body.subarray(0, 4).toString() === '%PDF', 'Hoja de prueba de factura para calibrar');
+
+  // Segunda impresora por PC: la de factura
+  const terminal = await post('/api/terminales/registrar', { equipo: 'pc-caja', impresoras: ['POS-80', 'EPSON LX-350'], version: '1.0' });
+  const conFactura = await call(`/api/terminales/${terminal.idterminal}`, { method: 'PUT', body: { ...terminal, nombre: 'Caja', nombre_impresora: 'POS-80', impresora_factura: 'EPSON LX-350' } });
+  ok(conFactura.nombre_impresora === 'POS-80' && conFactura.impresora_factura === 'EPSON LX-350', 'Cada PC guarda la impresora de tickets y la de factura');
+  const { impresora_factura: _omitida, ...sinCampo } = conFactura;
+  const conservada = await call(`/api/terminales/${terminal.idterminal}`, { method: 'PUT', body: { ...sinCampo, imprime_comanda: true } });
+  ok(conservada.impresora_factura === 'EPSON LX-350', 'Guardar la PC sin el campo conserva la impresora de factura');
+  await call('/api/datos-restaurante', { method: 'PUT', body: { ...config, sisfe_api_key: '', numero_actual: numeroActual + 2 } });
+  ok((await call('/api/facturas/config')).modo_facturacion === 'electronica', 'Vuelve al modo electrónico');
 
   // Config: numeración no retrocede
   const bajar = await call('/api/datos-restaurante', { method: 'PUT', body: { ...config, sisfe_api_key: '', numero_actual: 1 }, status: 400 });

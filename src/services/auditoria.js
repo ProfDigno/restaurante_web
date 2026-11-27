@@ -15,6 +15,7 @@ export const ACCIONES = {
   VALE_ANULADO: 'Vale anulado',
   CAJA_CIERRE_DIFERENCIA: 'Cierre de caja con diferencia',
   FACTURA_CANCELADA: 'Factura cancelada',
+  FACTURA_ANULADA: 'Factura pre-impresa anulada',
   USUARIO_CREADO: 'Usuario creado',
   USUARIO_MODIFICADO: 'Usuario modificado',
   ROL_CREADO: 'Rol creado',

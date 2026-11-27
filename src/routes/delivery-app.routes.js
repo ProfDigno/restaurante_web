@@ -22,7 +22,7 @@ router.get('/info', route(async () => {
 }));
 
 router.post('/login', loginRateLimit, route(async (req, res) => {
-  const login = String(req.body?.login || '').trim();
+  const login = String(req.body?.login || '').trim().toUpperCase();
   const pin = String(req.body?.pin || '');
   if (!login || !/^\d{4}$/.test(pin)) fail('Ingresá tu usuario y el PIN de 4 números');
   const entregador = (await pool.query(`SELECT identregador_delivery, nombre_completo, usuario, password_hash FROM entregador_delivery

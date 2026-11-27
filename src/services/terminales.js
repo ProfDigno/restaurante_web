@@ -2,7 +2,7 @@ import { pool } from '../config/database.js';
 import { fail } from './pedidos.js';
 import { leerConfigDefecto, validarComanda, validarPapel } from './impresora-config.js';
 
-const COLUMNAS = `idterminal, equipo, nombre, nombre_impresora, tamano_ticket, saltos_final, imprime_comanda, impresoras_detectadas,
+const COLUMNAS = `idterminal, equipo, nombre, nombre_impresora, impresora_factura, tamano_ticket, saltos_final, imprime_comanda, impresoras_detectadas,
   version_agente, activo, ultima_conexion, ultimo_usuario, fecha_modificado, modificado_por`;
 const texto = (value, max) => String(value ?? '').trim().slice(0, max);
 
@@ -32,13 +32,17 @@ export async function guardarTerminal(id, body = {}, user) {
   const nombre = texto(body.nombre, 60);
   if (!nombre) fail('Poné un nombre para la PC (por ejemplo, Caja 1)');
   const impresora = texto(body.nombre_impresora, 200) || null;
+  // Impresora de la factura pre-impresa: si no viene en el pedido se conserva la guardada.
+  const conFactura = body.impresora_factura !== undefined;
+  const impresoraFactura = texto(body.impresora_factura, 200) || null;
   if (typeof body.activo !== 'boolean') fail('Indicá si la terminal está activa');
   const papel = validarPapel(body);
   const comanda = validarComanda(body);
   const { rows } = await pool.query(`UPDATE terminal SET nombre=$1, nombre_impresora=$2, tamano_ticket=$3, saltos_final=$4, activo=$5,
-      fecha_modificado=CURRENT_TIMESTAMP, modificado_por=$6, imprime_comanda=COALESCE($8::boolean, imprime_comanda)
+      fecha_modificado=CURRENT_TIMESTAMP, modificado_por=$6, imprime_comanda=COALESCE($8::boolean, imprime_comanda),
+      impresora_factura=CASE WHEN $9::boolean THEN $10 ELSE impresora_factura END
       WHERE idterminal=$7 RETURNING ${COLUMNAS}`,
-  [nombre, impresora, papel.tamano_ticket, papel.saltos_final, body.activo, user.login, idterminal, comanda]);
+  [nombre, impresora, papel.tamano_ticket, papel.saltos_final, body.activo, user.login, idterminal, comanda, conFactura, impresoraFactura]);
   if (!rows.length) fail('Terminal no encontrada', 404);
   return rows[0];
 }

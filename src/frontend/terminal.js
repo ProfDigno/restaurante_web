@@ -124,3 +124,19 @@ export function nombreDocumento(url) {
   if (url.includes('/comanda.pdf')) return `Comanda #${m[2]}`;
   return m[1] === 'mesas' ? `Cuenta de mesa #${m[2]}` : `${tipos[m[1]] || 'Ticket'} #${m[2]}`;
 }
+
+// Factura pre-impresa: va a la impresora de factura de esta PC (la segunda impresora de Terminales).
+export const impresoraFactura = () => (estado.agente && estado.terminal?.activo && estado.terminal?.impresora_factura) || null;
+
+// Manda la hoja con el triplicado a la impresora de factura; sin agente o sin impresora asignada abre el PDF.
+// Devuelve el nombre de la impresora usada, o null si se abrió en el navegador.
+export async function imprimirFactura(idfactura, documento = `Factura #${idfactura}`) {
+  const url = `/api/facturas/${idfactura}/preimpresa.pdf`;
+  const impresora = impresoraFactura();
+  if (!impresora) {
+    window.open(url, '_blank', 'noopener');
+    return null;
+  }
+  await encolarEnAgente(await bajarPdf(url), documento, impresora);
+  return impresora;
+}
