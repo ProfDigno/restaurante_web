@@ -227,7 +227,8 @@ export async function anularFacturaPreimpresa(facturaId, motivo, user) {
     await client.query('BEGIN');
     const factura = (await client.query('SELECT * FROM factura WHERE idfactura=$1 FOR UPDATE', [id(facturaId)])).rows[0];
     if (!factura) fail('Factura no encontrada', 404);
-    if (factura.estado !== 'emitida') fail('Solo se puede anular una factura pre-impresa emitida', 409);
+    // También las que quedaron sin enviar a SISFE (pendiente o error, sin lote).
+    if (!(factura.estado === 'emitida' || (['pendiente', 'error'].includes(factura.estado) && !factura.lote_id))) fail('Solo se puede anular una factura pre-impresa emitida', 409);
     await client.query("UPDATE factura SET estado='cancelado',fecha_cancelado=CURRENT_TIMESTAMP,cancelado_por=$2,motivo_cancelado=$3 WHERE idfactura=$1", [factura.idfactura, user.login, reason]);
     await auditar(client, user, { accion: 'FACTURA_ANULADA', entidad: 'factura', id: factura.idfactura, motivo: reason,
       antes: { estado: factura.estado, numero: `${factura.establecimiento}-${factura.punto}-${String(factura.numero).padStart(7, '0')}`, total: Number(factura.total), pedido: factura.fk_idpedido },
@@ -292,6 +293,14 @@ export async function emitirBorrador(facturaId) {
   return exclusivo(facturaId, async () => {
     const factura = await obtenerFactura(pool, facturaId);
     if (!['pendiente', 'error'].includes(factura.estado)) return factura;
+    // Con factura pre-impresa, una factura que nunca llegó a SISFE (sin lote) pasa a emitida para imprimirla en la hoja.
+    if (!factura.lote_id && await modoFacturacion() === 'preimpresa') {
+      const renglones = lineasImpresas(factura.detalles).length;
+      if (renglones > MAX_LINEAS) fail(`La factura tiene ${renglones} renglones y la hoja pre-impresa admite ${MAX_LINEAS}. Anulala y facturá el pedido en dos.`, 409);
+      await pool.query("UPDATE factura SET estado='emitida',respuesta_codigo=NULL,respuesta_mensaje=NULL,total_letra=COALESCE(total_letra,$2) WHERE idfactura=$1",
+        [facturaId, numeroALetras(factura.total)]);
+      return obtenerFactura(pool, facturaId);
+    }
     try {
       await guardarRespuesta(facturaId, await sisfe.crearLote(documentoSisfe(factura), { borrador: true }));
     } catch (error) { await guardarError(facturaId, error); throw error; }

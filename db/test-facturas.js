@@ -204,6 +204,10 @@ try {
 
   // Factura pre-impresa (triplicado en la impresora local, sin SISFE)
   const pdfDe = async path => { const r = await fetch(base + path, { headers: { Cookie: cookies.admin } }); return { r, body: Buffer.from(await r.arrayBuffer()) }; };
+  const pedido7 = await crearPedido(cliente.idcliente, 1);
+  sisfe.failNextCreate = true;
+  await post('/api/facturas', { fk_idpedido: pedido7.idpedido, cliente: { fk_idcliente: cliente.idcliente, ruc: '4303489-6', razon_social: 'CLIENTE FACTURA SA' } }, { status: 502 });
+  const sinEnviar = (await pool.query('SELECT idfactura,numero FROM factura WHERE fk_idpedido=$1', [pedido7.idpedido])).rows[0];
   const numeroActual = Number((await call('/api/datos-restaurante')).numero_actual);
   await call('/api/datos-restaurante', { method: 'PUT', body: { ...config, sisfe_api_key: '', numero_actual: numeroActual, modo_facturacion: 'otro' }, status: 400 });
   await call('/api/datos-restaurante', { method: 'PUT', body: { ...config, sisfe_api_key: '', numero_actual: numeroActual, modo_facturacion: 'preimpresa' } });
@@ -230,6 +234,8 @@ try {
   ok(auditAnulada.length === 1, 'La anulación queda en la auditoría');
   const f6b = await post('/api/facturas', { fk_idpedido: pedido6.idpedido, cliente: { ...pre6.borrador.cliente, ruc: '', razon_social: 'Juan Pérez' } });
   ok(f6b.estado === 'emitida' && f6b.numero === f6.numero + 1 && f6b.cliente_razon_social === 'Juan Pérez' && !f6b.contribuyente, 'El pedido anulado se refactura con otro número y sin RUC conserva el nombre');
+  const pasada = await post(`/api/facturas/${sinEnviar.idfactura}/reintentar`);
+  ok(pasada.estado === 'emitida' && pasada.numero === sinEnviar.numero && !pasada.respuesta_mensaje && pasada.total_letra === 'MIL QUINIENTOS' && sisfe.requests.length === pedidosSisfe, 'Una factura que quedó en error sin llegar a SISFE pasa a pre-impresa con su número');
   const prueba = await pdfDe('/api/impresora-config/prueba-factura.pdf');
   ok(prueba.r.status === 200 && prueba.body.subarray(0, 4).toString() === '%PDF', 'Hoja de prueba de factura para calibrar');
 

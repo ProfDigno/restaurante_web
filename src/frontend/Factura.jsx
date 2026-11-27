@@ -124,7 +124,9 @@ function FacturaForm({ pedidoId, facturaId, onBack }) {
   const iva = Number(source.total_iva10);
   const aprobada = factura?.estado === 'aprobado';
   const emitida = factura?.estado === 'emitida';
-  const preimpresa = factura ? emitida || (factura.estado === 'cancelado' && !factura.cdc) : (borrador?.modo_facturacion || modo) === 'preimpresa';
+  // Factura que nunca llegó a SISFE: con el modo pre-impreso se pasa a emitida en lugar de reintentar.
+  const sinEnviar = factura && ['pendiente', 'error'].includes(factura.estado) && !factura.lote_id && modo === 'preimpresa';
+  const preimpresa = factura ? emitida || sinEnviar || (factura.estado === 'cancelado' && !factura.cdc) : (borrador?.modo_facturacion || modo) === 'preimpresa';
   const sobranLineas = !factura && preimpresa && borrador?.lineas_impresas > borrador?.max_lineas;
 
   return <div className="invoice-page">
@@ -140,7 +142,8 @@ function FacturaForm({ pedidoId, facturaId, onBack }) {
     {notice && <div className="alert success" role="status">{notice}</div>}
     {sobranLineas && <div className="alert error" role="alert">La factura tiene {borrador.lineas_impresas} renglones (ya juntando los productos iguales) y la hoja pre-impresa admite {borrador.max_lineas}. Dividí el pedido para facturarlo en dos.</div>}
     {factura?.estado === 'cancelado' && factura.motivo_cancelado && <div className="alert info" role="status">Anulada por {factura.cancelado_por} · {dateTime(factura.fecha_cancelado)} · {factura.motivo_cancelado}</div>}
-    {factura?.respuesta_mensaje && <div className={`alert ${factura.estado === 'error' || factura.estado === 'rechazado' ? 'error' : 'info'}`}>{factura.respuesta_codigo ? `${factura.respuesta_codigo} · ` : ''}{factura.respuesta_mensaje}</div>}
+    {sinEnviar && <div className="alert info" role="status">Esta factura se creó con la factura electrónica y no llegó a SISFE. Tocá «Emitir en hoja pre-impresa» para imprimirla con el mismo número, o anulala.</div>}
+    {factura?.respuesta_mensaje && !sinEnviar && <div className={`alert ${factura.estado === 'error' || factura.estado === 'rechazado' ? 'error' : 'info'}`}>{factura.respuesta_codigo ? `${factura.respuesta_codigo} · ` : ''}{factura.respuesta_mensaje}</div>}
     {borrador && !borrador.cuadra && <div className="alert error" role="alert">El total de la factura ({formatMoney(borrador.total)}) no coincide con el del pedido ({formatMoney(borrador.pedido.monto_total)}). No se puede emitir.</div>}
 
     <section className="invoice-card">
@@ -174,7 +177,9 @@ function FacturaForm({ pedidoId, facturaId, onBack }) {
       {editable && <button type="button" className="primary" disabled={busy || !borrador.cuadra || sobranLineas || !modo} onClick={save}>{busy ? 'Guardando…' : preimpresa ? 'Emitir factura' : 'Guardar factura (borrador)'}</button>}
       {emitida && <button type="button" className="primary" disabled={busy} onClick={print}>{busy ? 'Enviando…' : 'Imprimir factura'}</button>}
       {emitida && <button type="button" className="secondary danger-text" disabled={busy} onClick={() => setCancel('')}>Anular factura</button>}
-      {factura?.estado === 'error' && <button type="button" className="primary" disabled={busy} onClick={() => post('reintentar')}>{busy ? 'Enviando…' : 'Reintentar'}</button>}
+      {factura?.estado === 'error' && !sinEnviar && <button type="button" className="primary" disabled={busy} onClick={() => post('reintentar')}>{busy ? 'Enviando…' : 'Reintentar'}</button>}
+      {sinEnviar && <button type="button" className="primary" disabled={busy} onClick={() => post('reintentar')}>{busy ? 'Guardando…' : 'Emitir en hoja pre-impresa'}</button>}
+      {sinEnviar && <button type="button" className="secondary danger-text" disabled={busy} onClick={() => setCancel('')}>Anular factura</button>}
       {factura?.estado === 'borrador' && <button type="button" className="primary" disabled={busy} onClick={() => post('confirmar')}>{busy ? 'Enviando a SIFEN…' : 'Confirmar y enviar a SIFEN'}</button>}
       {factura?.cdc && <a className="secondary" href={`/api/facturas/${factura.idfactura}/kude.pdf`} target="_blank" rel="noopener noreferrer">Imprimir KUDE</a>}
       {factura?.cdc && factura.estado !== 'cancelado' && <button type="button" className="secondary" disabled={busy} onClick={() => post('estado')}>Actualizar estado</button>}
@@ -182,13 +187,13 @@ function FacturaForm({ pedidoId, facturaId, onBack }) {
     </div>
 
     {picker && <ClientePicker onClose={() => setPicker(false)} onPick={item => { setCliente(item); setRuc(null); setPicker(false); }} />}
-    {cancel !== null && <div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true" aria-label={emitida ? 'Anular factura' : 'Cancelar factura'}>
-      <div className="modal-head"><h2>{emitida ? 'Anular factura' : 'Cancelar factura'}</h2><button type="button" className="modal-close" disabled={busy} onClick={() => setCancel(null)}>×</button></div>
-      <form className="modal-form" onSubmit={event => { event.preventDefault(); post(emitida ? 'anular' : 'cancelar', { motivo: cancel }).then(done => { if (done) setCancel(null); }); }}>
-        <p>{emitida ? `Se anula la factura ${factura.numero_completo}: guardá o destruí las tres copias impresas. El número no se vuelve a usar y el pedido se puede facturar de nuevo.` : `Se cancela la factura ${factura.numero_completo} en SIFEN. Solo se puede dentro de las 48 horas de emitida.`}</p>
+    {cancel !== null && <div className="modal-backdrop"><div className="modal" role="dialog" aria-modal="true" aria-label={emitida || sinEnviar ? 'Anular factura' : 'Cancelar factura'}>
+      <div className="modal-head"><h2>{(emitida || sinEnviar) ? 'Anular factura' : 'Cancelar factura'}</h2><button type="button" className="modal-close" disabled={busy} onClick={() => setCancel(null)}>×</button></div>
+      <form className="modal-form" onSubmit={event => { event.preventDefault(); post((emitida || sinEnviar) ? 'anular' : 'cancelar', { motivo: cancel }).then(done => { if (done) setCancel(null); }); }}>
+        <p>{(emitida || sinEnviar) ? `Se anula la factura ${factura.numero_completo}: guardá o destruí las tres copias impresas. El número no se vuelve a usar y el pedido se puede facturar de nuevo.` : `Se cancela la factura ${factura.numero_completo} en SIFEN. Solo se puede dentro de las 48 horas de emitida.`}</p>
         <label>Motivo<textarea required minLength={5} maxLength={500} value={cancel} onChange={event => setCancel(event.target.value)} /></label>
         {error && <div className="alert error" role="alert">{error}</div>}
-        <div className="modal-actions"><button type="button" className="secondary" disabled={busy} onClick={() => setCancel(null)}>Volver</button><button className="primary" disabled={busy}>{busy ? 'Guardando…' : emitida ? 'Anular factura' : 'Cancelar factura'}</button></div>
+        <div className="modal-actions"><button type="button" className="secondary" disabled={busy} onClick={() => setCancel(null)}>Volver</button><button className="primary" disabled={busy}>{busy ? 'Guardando…' : (emitida || sinEnviar) ? 'Anular factura' : 'Cancelar factura'}</button></div>
       </form>
     </div></div>}
   </div>;
