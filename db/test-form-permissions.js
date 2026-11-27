@@ -208,8 +208,8 @@ try {
   await call('/api/auth/me', { as: 'prueba', status: 401 });
   const openBox=(await call('/api/cajas')).abierta;
   const boxDetail=await call(`/api/cajas/${openBox.idcaja_gral}`);
-  const counts=Object.fromEntries(boxDetail.arqueos.map(row=>[row.fk_idforma_pago,Number(row.monto_esperado)]));
-  await call(`/api/cajas/${openBox.idcaja_gral}/cerrar`, { method:'POST',body:{conteos:counts,clave:randomUUID()} });
+  const arqueo=boxDetail.arqueo;
+  await call(`/api/cajas/${openBox.idcaja_gral}/cerrar`, { method:'POST',body:{billetes:{},monedas:arqueo.vendido+arqueo.saldo_inicial-arqueo.total_egresos,clave:randomUUID()} });
   assert.equal((await pool.query("SELECT count(*)::int AS n FROM auditoria WHERE accion='CAJA_CIERRE_DIFERENCIA'")).rows[0].n,0,'Un cierre sin diferencia no se audita');
   await call('/api/gastos', { method:'POST',body:{fecha_gasto:'2026-10-17',fk_idgasto_tipo:1,fk_idforma_pago:cashForm.idforma_pago,descripcion:'Sin caja',total_gasto:1000,clave:randomUUID()},status:400 });
   await call(`/api/compras/${creditDraft.idcompra}/pagos`,{method:'POST',body:{importe:100,fk_idforma_pago:cashForm.idforma_pago,clave:randomUUID()},status:400});

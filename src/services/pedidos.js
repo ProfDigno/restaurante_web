@@ -59,7 +59,7 @@ export async function order(c, orderId) {
   if (p.fk_identregador_delivery) p.entregador_nombre = (await c.query('SELECT nombre_completo FROM entregador_delivery WHERE identregador_delivery=$1', [p.fk_identregador_delivery])).rows[0]?.nombre_completo || null;
   p.pago_anticipado = (await c.query(`SELECT p.idpago,p.fk_idforma_pago,f.nombre AS forma_pago_nombre,p.importe,p.estado,
     COALESCE((SELECT SUM(d.importe) FROM devolucion_pago d WHERE d.fk_idpago=p.idpago),0) AS devuelto
-    FROM pago p JOIN forma_pago f ON f.idforma_pago=p.fk_idforma_pago WHERE p.fk_idpedido=$1`, [p.idpedido])).rows[0] || null;
+    FROM pago p JOIN forma_pago f ON f.idforma_pago=p.fk_idforma_pago WHERE p.fk_idpedido=$1 ORDER BY (p.estado='anulado'), p.idpago DESC LIMIT 1`, [p.idpedido])).rows[0] || null;
   p.saldo_cuenta = Number((await c.query('SELECT total-cobrado_neto_cuenta(idcuenta) AS saldo FROM cuenta WHERE idcuenta=$1', [p.fk_idcuenta])).rows[0].saldo);
   return p;
 }

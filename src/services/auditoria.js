@@ -25,6 +25,7 @@ export const ACCIONES = {
   PAGO_DELIVERY_SIN_CAJA: 'Delivery marcado como pagado sin caja',
   ENTREGADOR_ASIGNADO: 'Entregador asignado a pedido',
   PEDIDO_FORMA_PAGO_ENTREGA: 'Forma de pago indicada por el entregador',
+  PEDIDO_COBRO_CAMBIO_FORMA: 'Cobro corregido por el entregador (cambio de forma de pago)',
   RENDICION_DELIVERY: 'Rendición de entregador',
   RENDICION_DELIVERY_ANULADA: 'Rendición de entregador anulada'
 };

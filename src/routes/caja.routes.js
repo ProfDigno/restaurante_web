@@ -24,6 +24,7 @@ router.use(requireAuth);
 
 const summarySql = `
   SELECT cg.idcaja_gral, cg.fecha_apertura, cg.fecha_cierre, cg.creado_por, cg.cerrado_por, cg.estado,
+    cg.cierre_billetes, cg.cierre_monedas, cg.cierre_pos, cg.cierre_egresos, cg.cierre_vendido, cg.cierre_delivery, cg.cierre_diferencia,
     COALESCE((SELECT sum(a.monto_inicial) FROM caja_arqueo a WHERE a.fk_idcaja_gral=cg.idcaja_gral),0) AS monto_inicial,
     COALESCE((SELECT sum(CASE WHEN i.tipo_movimiento='ingreso' THEN i.monto_pago+i.monto_compra+i.monto_gasto+i.monto_vale ELSE 0 END) FROM caja_item i WHERE i.fk_idcaja_gral=cg.idcaja_gral),0) AS total_ingresos,
     COALESCE((SELECT sum(CASE WHEN i.tipo_movimiento='egreso' THEN i.monto_pago+i.monto_compra+i.monto_gasto+i.monto_vale ELSE 0 END) FROM caja_item i WHERE i.fk_idcaja_gral=cg.idcaja_gral),0) AS total_egresos,
@@ -60,6 +61,53 @@ async function arqueoRows(client, cajaId) {
     HAVING a.monto_inicial <> 0 OR count(i.idcaja_item) > 0 OR a.monto_contado IS NOT NULL
     ORDER BY f.orden,f.nombre`, [cajaId]);
   return result.rows;
+}
+
+// Arqueo del cierre: se cuenta la plata real porque casi todo se cobra como efectivo.
+// Diferencia = (billetes + monedas − saldo inicial + egresos en efectivo) + POS − total vendido con delivery.
+// Egresos: lo que salió del cajón (gastos, vales, compras y pagos a delivery), netos de sus reversiones;
+// las devoluciones no van porque el pedido anulado ya no suma en lo vendido.
+export const DENOMINACIONES = [100000, 50000, 20000, 10000, 5000, 2000, 1000];
+const egresoLabels = { gasto: 'Gastos', vale: 'Vales', compra: 'Compras', pago_compra: 'Pagos de compras', delivery: 'Pagos a delivery' };
+
+export async function datosArqueo(client, cajaId) {
+  const caja = (await client.query(`${summarySql} WHERE cg.idcaja_gral=$1`, [cajaId])).rows[0];
+  if (!caja) fail('Caja no encontrada', 404);
+  const efectivo = await activeCash(client);
+  const hasta = caja.fecha_cierre || new Date();
+  // En serie: el cliente puede ser el de una transacción, que no admite consultas en paralelo.
+  const egresos = await client.query(`
+      SELECT x.origen, sum(CASE WHEN x.tipo_movimiento='egreso' THEN x.monto ELSE -x.monto END) AS monto,
+        count(*) FILTER (WHERE NOT x.es_reversion)::int AS cantidad
+      FROM (SELECT i.tipo_movimiento, i.es_reversion, i.monto_pago+i.monto_compra+i.monto_gasto+i.monto_vale AS monto,
+          CASE WHEN i.fk_idcompra_pago IS NOT NULL THEN 'pago_compra'
+               WHEN i.fk_idcompra IS NOT NULL THEN 'compra'
+               WHEN i.fk_idgasto IS NOT NULL AND EXISTS (SELECT 1 FROM pago_delivery pd WHERE pd.fk_idgasto=i.fk_idgasto) THEN 'delivery'
+               WHEN i.fk_idgasto IS NOT NULL THEN 'gasto'
+               WHEN i.fk_idvale IS NOT NULL THEN 'vale' END AS origen
+        FROM caja_item i WHERE i.fk_idcaja_gral=$1 AND i.fk_idforma_pago=$2) x
+      WHERE x.origen IS NOT NULL GROUP BY x.origen`, [cajaId, efectivo.idforma_pago]);
+  // Máquinas activas (y las usadas en el cierre aunque hoy estén inactivas), con lo rendido por delivery en esta caja.
+  const maquinas = await client.query(`
+      SELECT m.idmaquina_pos, m.nombre, m.numero, c.monto AS contado,
+        COALESCE((SELECT sum(r.pos_informado) FROM rendicion_delivery r WHERE r.estado='activa' AND r.fk_idmaquina_pos=m.idmaquina_pos
+          AND r.fecha_creado>=$2 AND r.fecha_creado<=$3),0) AS rendido
+      FROM maquina_pos m LEFT JOIN caja_cierre_pos c ON c.fk_idmaquina_pos=m.idmaquina_pos AND c.fk_idcaja_gral=$1
+      WHERE m.activo OR c.monto IS NOT NULL ORDER BY m.orden, m.nombre, m.idmaquina_pos`, [cajaId, caja.fecha_apertura, hasta]);
+  const billetes = await client.query('SELECT denominacion, cantidad FROM caja_cierre_billete WHERE fk_idcaja_gral=$1 ORDER BY denominacion DESC', [cajaId]);
+  const detalleEgresos = Object.keys(egresoLabels).map(origen => {
+    const row = egresos.rows.find(r => r.origen === origen);
+    return { origen, etiqueta: egresoLabels[origen], cantidad: row?.cantidad || 0, monto: Number(row?.monto || 0) };
+  }).filter(row => row.monto || row.cantidad);
+  const sinDelivery = Number(caja.total_pedidos_sin_delivery), delivery = Number(caja.total_delivery);
+  return {
+    efectivo, saldo_inicial: Number(caja.monto_inicial), denominaciones: DENOMINACIONES,
+    billetes: billetes.rows.map(r => ({ denominacion: r.denominacion, cantidad: r.cantidad })),
+    egresos: detalleEgresos, total_egresos: detalleEgresos.reduce((sum, row) => sum + row.monto, 0),
+    vendido_sin_delivery: sinDelivery, delivery, vendido: sinDelivery + delivery,
+    maquinas_pos: maquinas.rows.map(r => ({ idmaquina_pos: r.idmaquina_pos, nombre: r.nombre, numero: r.numero,
+      rendido: Number(r.rendido), contado: r.contado === null ? null : Number(r.contado) }))
+  };
 }
 
 // Cuentas abiertas con pedidos vigentes y saldo por cobrar: impiden cerrar la caja.
@@ -140,34 +188,52 @@ router.get('/:id', formAccess, route(async (req) => {
     LEFT JOIN gasto g ON g.idgasto=i.fk_idgasto
     LEFT JOIN vale v ON v.idvale=i.fk_idvale
     WHERE i.fk_idcaja_gral=$1 ORDER BY i.idcaja_item DESC LIMIT $2 OFFSET $3`, [cajaId, pageSize, (page - 1) * pageSize]);
-  return { caja, efectivo: await activeCash(), pendientes: caja.estado === 'abierta' ? await pendingPayments(pool) : [],
+  return { caja, efectivo: await activeCash(), arqueo: await datosArqueo(pool, cajaId), pendientes: caja.estado === 'abierta' ? await pendingPayments(pool) : [],
     delivery_pendiente: caja.estado === 'abierta' ? await deliveryPendienteDeCaja() : null, arqueos: arqueos.rows, movimientos: movimientos.rows, total, page, pageSize, totalPages: Math.max(1, Math.ceil(total / pageSize)) };
 }));
 
 router.post('/:id/cerrar', formAccess, route((req) => operation(req, async (client) => {
   const cajaId = id(req.params.id);
-  const conteos = req.body?.conteos;
-  if (!conteos || typeof conteos !== 'object' || Array.isArray(conteos)) fail('Ingresá el monto contado en efectivo');
-  for (const [forma, monto] of Object.entries(conteos)) { id(forma); integer(monto, 'Monto contado'); }
+  const body = req.body || {};
+  const objeto = (value) => value && typeof value === 'object' && !Array.isArray(value) ? value : null;
+  const billetesBody = objeto(body.billetes), posBody = objeto(body.pos) || {};
+  if (!billetesBody) fail('Ingresá la cantidad de cada billete');
+  const vacio = value => value === undefined || value === null || value === '' ? 0 : value;
+  const billetes = DENOMINACIONES.map(denominacion => ({ denominacion,
+    cantidad: integer(vacio(billetesBody[denominacion]), `Billetes de ${denominacion.toLocaleString('es-PY')}`) }));
+  const monedas = integer(vacio(body.monedas), 'Monedas');
   const pendientes = await pendingPayments(client);
   if (pendientes.length) {
     const lista = pendientes.map((row) => `${row.mesa_numero ? `Mesa ${row.mesa_numero}` : row.tipo} (pedido ${row.pedidos.map((n) => `#${n}`).join(', ')})`).join('; ');
     fail(`No se puede cerrar la caja: hay ${pendientes.length === 1 ? 'una cuenta' : `${pendientes.length} cuentas`} con pedidos pendientes de pago: ${lista}`, 409);
   }
-  // Solo el efectivo se cuenta a mano; las demás formas se cierran por el monto esperado salvo que se envíe otro.
-  const efectivo = await activeCash(client);
-  if (conteos[efectivo.idforma_pago] === undefined || conteos[efectivo.idforma_pago] === '') fail('Ingresá el monto contado en efectivo');
-  const completos = { ...conteos };
+  const arqueo = await datosArqueo(client, cajaId);
+  const maquinas = new Map(arqueo.maquinas_pos.map(m => [m.idmaquina_pos, m]));
+  const pos = [];
+  for (const [maquinaId, monto] of Object.entries(posBody)) {
+    const maquina = maquinas.get(id(maquinaId));
+    if (!maquina) fail('Elegí una máquina POS activa');
+    const valor = integer(vacio(monto), `Monto del POS ${maquina.nombre}`);
+    if (valor) pos.push({ maquinaId: maquina.idmaquina_pos, monto: valor });
+  }
+  const totalBilletes = billetes.reduce((sum, b) => sum + b.denominacion * b.cantidad, 0);
+  const totalPos = pos.reduce((sum, p) => sum + p.monto, 0);
+  const diferencia = totalBilletes + monedas - arqueo.saldo_inicial + arqueo.total_egresos + totalPos - arqueo.vendido;
+  // Billetes + monedas cierran también el arqueo por forma de pago del efectivo; las demás formas, por su esperado.
+  const completos = { [arqueo.efectivo.idforma_pago]: totalBilletes + monedas };
   for (const row of await arqueoRows(client, cajaId)) {
     const key = String(row.fk_idforma_pago);
     if (completos[key] === undefined) completos[key] = Math.max(0, Number(row.monto_esperado));
   }
   await client.query('SELECT cerrar_caja_gral($1,$2::jsonb,$3)', [cajaId, JSON.stringify(completos), req.user.login]);
-  const diferencias = (await arqueoRows(client, cajaId)).filter(row => Number(row.diferencia || 0) !== 0);
-  if (diferencias.length) await auditar(client, req.user, { accion: 'CAJA_CIERRE_DIFERENCIA', entidad: 'caja', id: cajaId,
-    antes: Object.fromEntries(diferencias.map(row => [row.forma_pago, { esperado: Number(row.monto_esperado) }])),
-    despues: Object.fromEntries(diferencias.map(row => [row.forma_pago, { contado: Number(row.monto_contado), diferencia: Number(row.diferencia) }])) });
-  return { idcaja_gral: cajaId, estado: 'cerrada' };
+  for (const b of billetes) if (b.cantidad) await client.query('INSERT INTO caja_cierre_billete(fk_idcaja_gral,denominacion,cantidad) VALUES($1,$2,$3)', [cajaId, b.denominacion, b.cantidad]);
+  for (const p of pos) await client.query('INSERT INTO caja_cierre_pos(fk_idcaja_gral,fk_idmaquina_pos,monto) VALUES($1,$2,$3)', [cajaId, p.maquinaId, p.monto]);
+  await client.query(`UPDATE caja_gral SET cierre_billetes=$2, cierre_monedas=$3, cierre_pos=$4, cierre_egresos=$5, cierre_vendido=$6, cierre_delivery=$7, cierre_diferencia=$8
+    WHERE idcaja_gral=$1`, [cajaId, totalBilletes, monedas, totalPos, arqueo.total_egresos, arqueo.vendido, arqueo.delivery, diferencia]);
+  if (diferencia) await auditar(client, req.user, { accion: 'CAJA_CIERRE_DIFERENCIA', entidad: 'caja', id: cajaId,
+    antes: { vendido: arqueo.vendido, saldo_inicial: arqueo.saldo_inicial, egresos: arqueo.total_egresos },
+    despues: { billetes: totalBilletes, monedas, pos: totalPos, diferencia } });
+  return { idcaja_gral: cajaId, estado: 'cerrada', diferencia };
 })));
 
 const originLabels = { cobro: 'Cobros de pedidos', devolucion: 'Devoluciones', pago_compra: 'Pagos de compras', compra: 'Compras', gasto: 'Gastos', vale: 'Vales', delivery: 'Pagos a delivery' };
@@ -245,7 +311,7 @@ export async function cajaTicketData(cajaId) {
     .reduce((sum, row) => sum + (row.tipo_movimiento === 'egreso' ? num(row.monto) : -num(row.monto)), 0);
   const r = rendiciones.rows[0];
   const efectivo = await activeCash();
-  return { caja, efectivoId: efectivo.idforma_pago, efectivoNombre: efectivo.nombre, arqueos, ingresos: group('ingreso'), egresos: group('egreso'),
+  return { caja, efectivoId: efectivo.idforma_pago, efectivoNombre: efectivo.nombre, arqueos, arqueo: await datosArqueo(pool, cajaId), ingresos: group('ingreso'), egresos: group('egreso'),
     categorias: categorias.rows, productos: productos.rows, anulados: anulados.rows, usuarios,
     descuentos: { total: num(descuentos.rows[0].total), cantidad: num(descuentos.rows[0].cantidad) },
     pos: pos.rows.map(row => ({ nombre: row.nombre, informado: num(row.informado), sistema: num(row.sistema), rendiciones: row.rendiciones })),

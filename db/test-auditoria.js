@@ -132,14 +132,14 @@ try {
   await call('/api/cajas/abrir', { method: 'POST', body: { clave: randomUUID(), monto_inicial: 10000 } });
   const box = (await call('/api/cajas')).abierta;
   const detail = await call(`/api/cajas/${box.idcaja_gral}`);
-  const counts = Object.fromEntries(detail.arqueos.map(row => [row.fk_idforma_pago, Number(row.monto_esperado)]));
-  const cash = detail.efectivo.idforma_pago;
-  counts[cash] -= 3000;
-  await call(`/api/cajas/${box.idcaja_gral}/cerrar`, { method: 'POST', body: { clave: randomUUID(), conteos: counts } });
+  // Arqueo: billetes + monedas − saldo inicial + egresos + POS − vendido; faltan 3.000.
+  const a = detail.arqueo;
+  const monedas = a.vendido + a.saldo_inicial - a.total_egresos - 3000;
+  await call(`/api/cajas/${box.idcaja_gral}/cerrar`, { method: 'POST', body: { clave: randomUUID(), billetes: {}, monedas } });
   const [cierre] = await rows('CAJA_CIERRE_DIFERENCIA', box.idcaja_gral);
-  const forma = Object.keys(cierre.despues)[0];
-  assert.equal(cierre.despues[forma].diferencia, -3000);
-  assert.equal(cierre.antes[forma].esperado, counts[cash] + 3000);
+  assert.equal(cierre.despues.diferencia, -3000);
+  assert.equal(cierre.despues.monedas, monedas);
+  assert.equal(cierre.antes.vendido, a.vendido);
 
   // --- Consulta: filtros, paginado y Excel
   const all = await call('/api/auditoria?pageSize=25');

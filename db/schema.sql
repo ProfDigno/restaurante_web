@@ -533,6 +533,10 @@ CREATE TABLE caja_gral (
   fecha_cierre timestamp,
   cerrado_por text,
   estado estado_caja_gral NOT NULL DEFAULT 'abierta',
+  -- Arqueo del cierre (NULL en cajas cerradas antes del conteo por billetes):
+  -- diferencia = (billetes + monedas − saldo inicial + egresos en efectivo) + POS − vendido con delivery.
+  cierre_billetes numeric(14,0), cierre_monedas numeric(14,0), cierre_pos numeric(14,0), cierre_egresos numeric(14,0),
+  cierre_vendido numeric(14,0), cierre_delivery numeric(14,0), cierre_diferencia numeric(14,0),
   CONSTRAINT caja_gral_fechas_validas CHECK (fecha_cierre IS NULL OR fecha_cierre >= fecha_apertura),
   CONSTRAINT caja_gral_cierre_valido CHECK (
     (estado = 'cerrada' AND fecha_cierre IS NOT NULL AND cerrado_por IS NOT NULL) OR
@@ -553,6 +557,20 @@ CREATE TABLE caja_arqueo (
   monto_contado numeric(14,0) CHECK (monto_contado IS NULL OR monto_contado >= 0),
   diferencia numeric(14,0),
   CONSTRAINT caja_arqueo_forma_unica UNIQUE (fk_idcaja_gral, fk_idforma_pago)
+);
+
+CREATE TABLE caja_cierre_billete (
+  fk_idcaja_gral integer NOT NULL REFERENCES caja_gral(idcaja_gral),
+  denominacion integer NOT NULL CHECK (denominacion > 0),
+  cantidad integer NOT NULL CHECK (cantidad >= 0),
+  PRIMARY KEY (fk_idcaja_gral, denominacion)
+);
+
+CREATE TABLE caja_cierre_pos (
+  fk_idcaja_gral integer NOT NULL REFERENCES caja_gral(idcaja_gral),
+  fk_idmaquina_pos integer NOT NULL REFERENCES maquina_pos(idmaquina_pos),
+  monto numeric(14,0) NOT NULL CHECK (monto >= 0),
+  PRIMARY KEY (fk_idcaja_gral, fk_idmaquina_pos)
 );
 
 CREATE TABLE caja_item (
@@ -694,7 +712,7 @@ CREATE INDEX idx_detalle_pedido_ingrediente_detalle ON detalle_pedido_ingredient
 CREATE INDEX idx_detalle_pedido_ingrediente_ingrediente ON detalle_pedido_ingrediente (fk_idingrediente);
 CREATE INDEX idx_detalle_pedido_receta_detalle ON detalle_pedido_receta (fk_iddetalle_pedido);
 CREATE INDEX idx_pago_cuenta ON pago (fk_idcuenta);
-CREATE UNIQUE INDEX pago_anticipado_pedido_unico ON pago (fk_idpedido) WHERE fk_idpedido IS NOT NULL;
+CREATE UNIQUE INDEX pago_anticipado_pedido_unico ON pago (fk_idpedido) WHERE fk_idpedido IS NOT NULL AND estado <> 'anulado';
 CREATE INDEX idx_pago_forma_pago ON pago (fk_idforma_pago);
 CREATE INDEX idx_forma_pago_orden ON forma_pago (orden);
 CREATE INDEX idx_compra_forma_pago ON compra (fk_idforma_pago);
@@ -892,6 +910,30 @@ BEGIN
   END LOOP;
   UPDATE caja_gral SET estado = 'cerrada', fecha_cierre = CURRENT_TIMESTAMP, cerrado_por = p_cerrado_por
   WHERE idcaja_gral = p_idcaja_gral;
+END;
+$$;
+
+-- Corrige la forma de pago de una cuenta ya cobrada (por ejemplo, el entregador cobró con POS lo que el cajero
+-- cargó en efectivo). Los pagos aprobados no se pueden tocar con la cuenta cerrada, así que se reabre un instante,
+-- se anulan sus pagos (la caja registra las reversiones), se cobra el mismo total con la forma nueva y se vuelve
+-- a cerrar con la fecha y el usuario de cierre originales.
+CREATE OR REPLACE FUNCTION cambiar_forma_cobro_cuenta(p_idcuenta integer, p_idforma_pago integer, p_usuario text, p_motivo text)
+RETURNS void LANGUAGE plpgsql AS $$
+DECLARE v_cuenta cuenta%ROWTYPE; v_total numeric(14,0); v_pedido integer;
+BEGIN
+  SELECT * INTO v_cuenta FROM cuenta WHERE idcuenta = p_idcuenta FOR UPDATE;
+  IF NOT FOUND THEN RAISE EXCEPTION 'La cuenta % no existe', p_idcuenta; END IF;
+  SELECT COALESCE(sum(importe), 0) INTO v_total FROM pago WHERE fk_idcuenta = p_idcuenta AND estado = 'aprobado';
+  IF v_total <= 0 THEN RAISE EXCEPTION 'La cuenta % no tiene cobros para corregir', p_idcuenta; END IF;
+  -- Si era un pago anticipado del pedido, el cobro nuevo lo sigue siendo.
+  SELECT min(fk_idpedido) INTO v_pedido FROM pago WHERE fk_idcuenta = p_idcuenta AND estado = 'aprobado';
+  IF v_cuenta.estado = 'cerrada' THEN UPDATE cuenta SET estado = 'abierta', fecha_cierre = NULL, cerrado_por = NULL WHERE idcuenta = p_idcuenta; END IF;
+  UPDATE pago SET estado = 'anulado', fecha_anulado = CURRENT_TIMESTAMP, anulado_por = p_usuario, motivo_anulado = p_motivo
+  WHERE fk_idcuenta = p_idcuenta AND estado = 'aprobado';
+  INSERT INTO pago (fk_idcuenta, fk_idpedido, fk_idforma_pago, importe, estado, creado_por) VALUES (p_idcuenta, v_pedido, p_idforma_pago, v_total, 'aprobado', p_usuario);
+  IF v_cuenta.estado = 'cerrada' THEN
+    UPDATE cuenta SET estado = 'cerrada', fecha_cierre = v_cuenta.fecha_cierre, cerrado_por = v_cuenta.cerrado_por WHERE idcuenta = p_idcuenta;
+  END IF;
 END;
 $$;
 

@@ -40,3 +40,31 @@
 .cash-stats .delivery { background: #fdf5e6; }
 .cash-stats .delivery strong { color: #9a6412; }
 .cash-stats small { font-size: 12px; color: #6b7c75; }
+
+/* Arqueo del cierre: billetes, POS y resumen. */
+.modal.cash-close-modal { width: min(920px, 96vw); max-height: 94vh; overflow: auto; }
+.cash-count { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; align-items: start; }
+.cash-count h4, .cash-closed-count h4 { margin: 0 0 8px; font-size: 13px; color: #20342c; }
+.cash-count-bills table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.cash-count-bills th { text-align: left; font-size: 11px; color: #6b7d76; padding: 4px 6px; }
+.cash-count-bills td { padding: 4px 6px; border-top: 1px solid var(--line); }
+.cash-count-bills input { width: 100%; max-width: 110px; padding: 8px; border: 1px solid #dce5df; border-radius: 8px; font: inherit; text-align: right; }
+.cash-count-bills tfoot td { font-weight: 800; font-size: 14px; border-top: 2px solid #20342c; }
+.cash-count-side { display: grid; gap: 10px; }
+.cash-count-pos { display: grid; gap: 8px; }
+.cash-count-pos label { display: grid; grid-template-columns: minmax(0, 1fr) 150px; align-items: center; gap: 10px; font-size: 13px; font-weight: 700; }
+.cash-count-pos label small { display: block; font-weight: 400; color: #6b7d76; }
+.cash-count-pos input { width: 100%; padding: 8px; border: 1px solid #dce5df; border-radius: 8px; font: inherit; text-align: right; }
+.cash-count-summary { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; font-size: 13px; color: #52665e; }
+.cash-count-summary li { display: flex; justify-content: space-between; gap: 12px; }
+.cash-count-summary li strong { color: #20342c; }
+.cash-count-summary li.sub { padding-left: 14px; font-size: 12px; color: #6b7d76; }
+.cash-count-summary li.total { padding-top: 4px; border-top: 1px solid var(--line); font-weight: 800; color: #20342c; }
+.cash-count-summary li.diff { margin-top: 6px; padding: 10px 12px; border-radius: 10px; font-size: 16px; font-weight: 800; }
+.cash-count-summary li.diff.ok { background: #eaf7ee; color: #28714b; }
+.cash-count-summary li.diff.over { background: #fff7e0; color: #8a6200; }
+.cash-count-summary li.diff.short { background: #fff0ed; color: #b44e43; }
+.cash-count-summary li.diff strong { color: inherit; }
+.cash-diff.ok strong { color: #28714b; } .cash-diff.over strong { color: #8a6200; } .cash-diff.short strong { color: #b44e43; }
+.cash-closed-count { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px; margin: 18px 0; padding: 14px; border: 1px solid var(--line); border-radius: 12px; }
+@media (max-width: 760px) { .cash-count { grid-template-columns: 1fr; } }

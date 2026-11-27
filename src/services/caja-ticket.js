@@ -87,7 +87,35 @@ function layout(doc, data, printedAt) {
   }
   if (pos.length) pair('TOTAL POS', money(posInformado), { bold: true });
 
-  // 5. Efectivo: lo que debe haber en caja contra lo contado al cerrar.
+  // 5. Arqueo (cajas cerradas con conteo de billetes): plata real contra lo vendido.
+  // Ingresado = billetes + monedas − saldo inicial + egresos en efectivo + POS; diferencia = ingresado − vendido con delivery.
+  const arqueo = data.arqueo;
+  if (arqueo && caja.cierre_diferencia !== null && caja.cierre_diferencia !== undefined) {
+    const contadoCaja = n(caja.cierre_billetes) + n(caja.cierre_monedas);
+    const diferencia = n(caja.cierre_diferencia);
+    section('ARQUEO DE CIERRE');
+    text('Billetes', { size: 8.5, bold: true, gap: 2 });
+    if (!arqueo.billetes.length) empty('Sin billetes.');
+    for (const b of arqueo.billetes) detail(`${b.cantidad} × ${money(b.denominacion)}`, money(b.cantidad * b.denominacion));
+    if (n(caja.cierre_monedas)) detail('Monedas / otros', money(caja.cierre_monedas));
+    pair('Billetes y monedas', money(contadoCaja), { bold: true });
+    pair('- Saldo inicial', money(caja.monto_inicial));
+    pair('+ Egresos', money(caja.cierre_egresos));
+    for (const e of arqueo.egresos) detail(`${e.etiqueta}${e.cantidad ? ` (${e.cantidad})` : ''}`, money(e.monto));
+    pair('+ POS', money(caja.cierre_pos));
+    for (const m of arqueo.maquinas_pos) if (m.contado !== null) detail(m.nombre, money(m.contado));
+    pair('INGRESADO', money(n(caja.cierre_vendido) + diferencia), { bold: true });
+    pair('Vendido sin delivery', money(n(caja.cierre_vendido) - n(caja.cierre_delivery)));
+    pair('+ Delivery', money(caja.cierre_delivery));
+    pair('VENDIDO', money(caja.cierre_vendido), { bold: true });
+    rule();
+    w.pair('DIFERENCIA', diferencia ? signed(diferencia) : 'Cuadra', { bold: true, size: 12, leftRatio: .55 });
+    note(diferencia > 0 ? 'Sobra plata respecto de lo vendido.' : diferencia < 0 ? 'Falta plata respecto de lo vendido.' : 'La plata contada coincide con lo vendido.');
+    for (const maquina of pos) if (maquina.informado !== maquina.sistema) note(`POS ${maquina.nombre} en rendiciones: ${signed(maquina.informado - maquina.sistema)} contra el sistema.`);
+  } else legacyCash();
+
+  // Cierres anteriores al conteo por billetes: efectivo esperado contra contado y resumen de diferencias.
+  function legacyCash() {
   const cashRow = arqueos.find(row => row.fk_idforma_pago === efectivoId);
   const esperado = n(cashRow?.monto_esperado ?? caja.monto_inicial);
   const contado = n(cashRow?.monto_contado);
@@ -115,6 +143,7 @@ function layout(doc, data, printedAt) {
   if (!diferencias.length) text('Sin diferencias: todo cuadra.', { size: 8.5, bold: true });
   for (const [label, value] of diferencias) pair(label, signed(value));
   if (diferencias.length) pair('TOTAL DIFERENCIAS', signed(diferencias.reduce((sum, [, value]) => sum + value, 0)), { bold: true });
+  }
 
   section('TOP CATEGORÍAS');
   if (!categorias.length) empty();

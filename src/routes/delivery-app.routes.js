@@ -9,7 +9,7 @@ import { restaurantInfo } from '../services/ticket-pdf.js';
 import { formaEfectivo } from '../services/rendicion-delivery.js';
 
 // Panel del entregador (/delivery): ingreso con usuario y PIN, pedidos DELIVERY de la caja abierta
-// (los suyos y los que nadie tomó), auto-asignación e indicación de la forma de pago (solo informativa).
+// (los suyos y los que nadie tomó), auto-asignación e indicación de la forma de pago (corrige el cobro si ya estaba cobrado).
 const router = Router();
 const fail = (message, status = 400) => { const error = new Error(message); error.status = status; throw error; };
 const route = handler => async (req, res, next) => { try { res.json(await handler(req, res)); } catch (error) { next(error); } };
@@ -50,6 +50,8 @@ const pedidosSql = `
     cu.estado::text AS estado_cuenta, cu.total AS total_cuenta, cobrado_neto_cuenta(cu.idcuenta) AS cobrado,
     (SELECT string_agg(DISTINCT f.nombre, ' + ') FROM pago pg JOIN forma_pago f ON f.idforma_pago=pg.fk_idforma_pago
       WHERE pg.estado='aprobado' AND pg.fk_idcuenta=p.fk_idcuenta) AS formas_cobradas,
+    (SELECT CASE WHEN count(DISTINCT pg.fk_idforma_pago)=1 THEN min(pg.fk_idforma_pago) END FROM pago pg
+      WHERE pg.estado='aprobado' AND pg.fk_idcuenta=p.fk_idcuenta) AS forma_cobrada_id,
     EXISTS (SELECT 1 FROM rendicion_delivery_pedido r WHERE r.fk_idpedido=p.idpedido AND r.activo) AS rendido
   FROM pedido p
   JOIN cuenta cu ON cu.idcuenta=p.fk_idcuenta
@@ -87,7 +89,9 @@ router.get('/pedidos', route(async req => {
         productos: lineas.filter(l => l.fk_idpedido === p.idpedido).map(l => ({ nombre: l.nombre, cantidad: number(l.cantidad), subtotal: number(l.subtotal) })),
         descuento: number(p.monto_descuento), recargo: number(p.monto_recargo), delivery: number(p.monto_delivery), total: number(p.monto_total), saldo,
         formas_cobradas: p.formas_cobradas, fk_idforma_pago_entrega: p.fk_idforma_pago_entrega, forma_pago_entrega: p.forma_pago_entrega,
-        rendido: p.rendido, puede_indicar_forma: p.fk_identregador_delivery === req.entregador.id && !p.rendido && !p.formas_cobradas && saldo > 0
+        forma_cobrada_id: p.forma_cobrada_id,
+        // También con el pedido ya cobrado (el cajero suele cargar todo en efectivo): el cambio corrige el cobro.
+        rendido: p.rendido, puede_indicar_forma: p.fk_identregador_delivery === req.entregador.id && !p.rendido && (saldo > 0 || !!p.formas_cobradas)
       };
     })
   };
@@ -177,7 +181,9 @@ router.post('/pedidos/:id/asignarme', route(req => transaccion(async c => {
   return { idpedido };
 })));
 
-// Forma de pago indicada por el entregador: no cobra ni mueve la caja; la Rendición la propone.
+// Forma de pago indicada por el entregador. Sin cobro: no mueve la caja; la Rendición la propone.
+// Ya cobrado (por ejemplo, el cajero lo cargó en efectivo y el cliente pagó con POS): corrige el cobro real,
+// anulando el pago y registrándolo de nuevo con la forma indicada (la caja muestra la reversión y el cobro nuevo).
 router.put('/pedidos/:id/forma-pago', route(req => transaccion(async c => {
   const idpedido = pedidoId(req.params.id);
   const formaId = Number(req.body?.fk_idforma_pago);
@@ -188,12 +194,25 @@ router.put('/pedidos/:id/forma-pago', route(req => transaccion(async c => {
     FROM pedido p JOIN cuenta cu ON cu.idcuenta=p.fk_idcuenta LEFT JOIN forma_pago fe ON fe.idforma_pago=p.fk_idforma_pago_entrega
     WHERE p.idpedido=$1 AND p.tipo_entrega='DELIVERY' AND p.estado<>'cancelado' AND p.fk_identregador_delivery=$2 FOR UPDATE OF p`, [idpedido, req.entregador.id])).rows[0];
   if (!pedido) fail('Pedido no encontrado', 404);
-  if (pedido.estado_cuenta !== 'abierta') fail('El pedido ya está cobrado', 409);
   if ((await c.query('SELECT 1 FROM rendicion_delivery_pedido WHERE fk_idpedido=$1 AND activo', [idpedido])).rowCount) fail('El pedido ya fue rendido', 409);
-  if ((await c.query("SELECT 1 FROM pago WHERE fk_idcuenta=$1 AND estado='aprobado'", [pedido.fk_idcuenta])).rowCount) fail('El pedido ya tiene un cobro registrado', 409);
+  const cobros = (await c.query(`SELECT pg.fk_idforma_pago, f.nombre, pg.importe,
+      (SELECT i.fk_idcaja_gral FROM caja_item i WHERE i.fk_idpago=pg.idpago AND NOT i.es_reversion) AS caja
+    FROM pago pg JOIN forma_pago f ON f.idforma_pago=pg.fk_idforma_pago WHERE pg.fk_idcuenta=$1 AND pg.estado='aprobado'`, [pedido.fk_idcuenta])).rows;
+  const corregir = cobros.some(row => row.fk_idforma_pago !== forma.idforma_pago);
+  if (corregir) {
+    const caja = (await c.query("SELECT idcaja_gral FROM caja_gral WHERE estado='abierta' FOR UPDATE")).rows[0];
+    if (!caja) fail('No hay caja abierta para corregir el cobro', 409);
+    if (cobros.some(row => row.caja !== caja.idcaja_gral)) fail('El cobro es de una caja ya cerrada; pedí al cajero que lo corrija', 409);
+    if ((await c.query('SELECT 1 FROM factura WHERE fk_idpedido=$1 AND estado<>\'cancelado\'', [idpedido])).rowCount) fail('El pedido ya está facturado; pedí al cajero que corrija el cobro', 409);
+    if ((await c.query('SELECT 1 FROM devolucion_pago d JOIN pago pg ON pg.idpago=d.fk_idpago WHERE pg.fk_idcuenta=$1', [pedido.fk_idcuenta])).rowCount) fail('El pedido tiene devoluciones; pedí al cajero que corrija el cobro', 409);
+    await c.query('SELECT cambiar_forma_cobro_cuenta($1,$2,$3,$4)', [pedido.fk_idcuenta, forma.idforma_pago, req.user.login,
+      `Cambio de forma de pago por el entregador ${req.entregador.nombre}: ${forma.nombre}`]);
+  }
   await c.query('UPDATE pedido SET fk_idforma_pago_entrega=$1, version_web=version_web+1 WHERE idpedido=$2', [forma.idforma_pago, idpedido]);
-  await auditar(c, req.user, { accion: 'PEDIDO_FORMA_PAGO_ENTREGA', entidad: 'pedido', id: idpedido,
-    antes: { forma_pago: pedido.anterior }, despues: { forma_pago: forma.nombre, entregador: req.entregador.nombre } });
+  const antes = cobros.length ? [...new Set(cobros.map(row => row.nombre))].join(' + ') : pedido.anterior;
+  await auditar(c, req.user, { accion: corregir ? 'PEDIDO_COBRO_CAMBIO_FORMA' : 'PEDIDO_FORMA_PAGO_ENTREGA', entidad: 'pedido', id: idpedido,
+    antes: { forma_pago: antes, ...(corregir ? { cobrado: cobros.reduce((sum, row) => sum + number(row.importe), 0) } : {}) },
+    despues: { forma_pago: forma.nombre, entregador: req.entregador.nombre } });
   return { idpedido, fk_idforma_pago_entrega: forma.idforma_pago, forma_pago_entrega: forma.nombre };
 })));
 

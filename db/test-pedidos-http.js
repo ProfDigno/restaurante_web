@@ -266,19 +266,25 @@ try {
  ok(cashDetail.movimientos.length>0&&cashDetail.movimientos.every(item=>item.origen&&item.forma_pago&&item.estado_origen),'Detalle de caja muestra origen, forma de pago y estado');
  const cashId=cashDetail.efectivo.idforma_pago;
  ok(cashDetail.pendientes.length>0,'El detalle de caja lista las cuentas con pedidos pendientes de pago');
- const blocked=await post(`/api/cajas/${openedBox.idcaja_gral}/cerrar`,{conteos:{[cashId]:0}},{status:409});
+ const blocked=await post(`/api/cajas/${openedBox.idcaja_gral}/cerrar`,{billetes:{}},{status:409});
  ok(/pendientes de pago/.test(blocked.error),'No se puede cerrar la caja con pedidos pendientes de pago');
  for(const pending of cashDetail.pendientes){await pool.query("UPDATE pedido SET estado='listo' WHERE fk_idcuenta=$1 AND estado IN ('abierto','confirmado','en_preparacion')",[pending.idcuenta]);await post(`/api/pedidos/cuentas/${pending.idcuenta}/cobrar`,{pagos:[{fk_idforma_pago:cashId,importe:pending.saldo}]});}
  cashDetail=await call(`/api/cajas/${openedBox.idcaja_gral}`);
  ok(cashDetail.pendientes.length===0,'Al cobrar los pendientes la caja queda lista para cerrar');
  await post(`/api/cajas/${openedBox.idcaja_gral}/cerrar`,{conteos:{}},{status:400});
+ await post(`/api/cajas/${openedBox.idcaja_gral}/cerrar`,{billetes:{100000:-1}},{status:400});
  const cashRow=cashDetail.arqueos.find(row=>row.fk_idforma_pago===cashId);
- await post(`/api/cajas/${openedBox.idcaja_gral}/cerrar`,{conteos:{[cashId+1000000]:5}},{status:400});
+ await post(`/api/cajas/${openedBox.idcaja_gral}/cerrar`,{billetes:{},pos:{999999:5}},{status:400});
  const openBoxTicket=await fetch(`${base}/api/cajas/${openedBox.idcaja_gral}/ticket.pdf`,{headers:{Cookie:cookies.admin}});
  ok(openBoxTicket.status===404,'El ticket de cierre no existe mientras la caja sigue abierta');
- await post(`/api/cajas/${openedBox.idcaja_gral}/cerrar`,{conteos:{[cashId]:Math.max(0,Number(cashRow.monto_esperado))}});
+ // Arqueo exacto: billetes + monedas = vendido + saldo inicial − egresos (sin POS).
+ const arqueoCierre=cashDetail.arqueo;
+ const contadoCierre=arqueoCierre.vendido+arqueoCierre.saldo_inicial-arqueoCierre.total_egresos;
+ const billetesCierre={100000:Math.floor(contadoCierre/100000)};
+ await post(`/api/cajas/${openedBox.idcaja_gral}/cerrar`,{billetes:billetesCierre,monedas:contadoCierre%100000});
  const closedDetail=await call(`/api/cajas/${openedBox.idcaja_gral}`);
  ok(closedDetail.caja.estado==='cerrada'&&closedDetail.arqueos.every(row=>row.monto_contado!==null&&(row.fk_idforma_pago===cashId||Number(row.diferencia)===0)),'Cierre pide solo efectivo y cierra las demás formas por su monto esperado');
+ ok(Number(closedDetail.caja.cierre_diferencia)===0&&Number(closedDetail.caja.cierre_vendido)===arqueoCierre.vendido&&closedDetail.arqueo.billetes.length===(billetesCierre[100000]?1:0),'El arqueo por billetes guarda el conteo y cuadra con lo vendido');
  const boxTicket=await fetch(`${base}/api/cajas/${openedBox.idcaja_gral}/ticket.pdf`,{headers:{Cookie:cookies.admin}});
  const boxTicketBytes=Buffer.from(await boxTicket.arrayBuffer());
  ok(boxTicket.status===200&&boxTicket.headers.get('content-type')==='application/pdf'&&boxTicketBytes.subarray(0,4).toString()==='%PDF','Ticket de cierre de caja se genera en PDF');

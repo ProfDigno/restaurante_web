@@ -105,9 +105,20 @@ try {
   ok(caja && movimientos === 0, 'Indicar la forma no registra cobro');
   const rendicion = (await request(`/api/pagos-delivery/rendicion/${ana}`)).data;
   ok(rendicion.pedidos.find(x => x.idpedido === libre.idpedido)?.fk_idforma_pago_entrega === card, 'La rendición recibe la forma indicada');
-  // Con un cobro registrado ya no se puede indicar.
+  // Con un cobro registrado (el cajero lo cargó en efectivo), cambiar la forma corrige el cobro real.
   assert.equal((await post(`/api/pedidos/${deBeto.idpedido}/pago-anticipado`, { fk_idforma_pago: cash, importe: 1000 })).status, 200);
-  ok((await request(`/api/delivery-app/pedidos/${deBeto.idpedido}/forma-pago`, { method: 'PUT', cookie: betoCookie, body: { fk_idforma_pago: card } })).status === 409, 'Con cobro registrado no se indica forma');
+  ok((await request('/api/delivery-app/pedidos', { cookie: betoCookie })).data.pedidos.find(x => x.idpedido === deBeto.idpedido)?.puede_indicar_forma, 'Con cobro registrado igual puede cambiar la forma');
+  const corregido = await request(`/api/delivery-app/pedidos/${deBeto.idpedido}/forma-pago`, { method: 'PUT', cookie: betoCookie, body: { fk_idforma_pago: card } });
+  ok(corregido.status === 200, 'Cambia la forma de un pedido ya cobrado');
+  const pagosBeto = (await pool.query('SELECT fk_idforma_pago, fk_idpedido, importe, estado FROM pago WHERE fk_idcuenta=$1 ORDER BY idpago', [deBeto.fk_idcuenta])).rows;
+  ok(pagosBeto.length === 2 && pagosBeto[0].estado === 'anulado' && pagosBeto[1].estado === 'aprobado' && pagosBeto[1].fk_idforma_pago === card
+    && Number(pagosBeto[1].importe) === 1000 && pagosBeto[1].fk_idpedido === deBeto.idpedido, 'El cobro en efectivo se anula y se registra con la forma nueva');
+  const cajaBeto = (await pool.query(`SELECT i.fk_idforma_pago, i.tipo_movimiento, i.es_reversion FROM caja_item i JOIN pago pg ON pg.idpago=i.fk_idpago
+    WHERE pg.fk_idcuenta=$1 ORDER BY i.idcaja_item`, [deBeto.fk_idcuenta])).rows;
+  ok(cajaBeto.length === 3 && cajaBeto[1].es_reversion && cajaBeto[1].fk_idforma_pago === cash && cajaBeto[2].fk_idforma_pago === card, 'La caja registra la reversión en efectivo y el cobro nuevo');
+  ok((await pool.query("SELECT 1 FROM auditoria WHERE accion='PEDIDO_COBRO_CAMBIO_FORMA' AND id_entidad=$1", [deBeto.idpedido])).rowCount === 1, 'Corrección del cobro auditada');
+  ok((await request(`/api/delivery-app/pedidos/${deBeto.idpedido}/forma-pago`, { method: 'PUT', cookie: betoCookie, body: { fk_idforma_pago: card } })).status === 200
+    && (await pool.query('SELECT count(*)::int AS n FROM pago WHERE fk_idcuenta=$1', [deBeto.fk_idcuenta])).rows[0].n === 2, 'Elegir la misma forma no vuelve a mover el cobro');
 
   // --- Totales del turno: neto = efectivo − delivery; POS aparte (debe coincidir con el reporte de la máquina).
   await pool.query("UPDATE forma_pago SET usa_pos=true WHERE idforma_pago=$1", [card]);

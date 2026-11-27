@@ -111,7 +111,9 @@ const ESTADOS = { confirmado: 'Confirmado', en_preparacion: 'En cocina', listo: 
 
 function PedidoCard({ pedido, formas, onAsignar, onForma, busy }) {
   const [cambiar, setCambiar] = useState(false);
-  const mostrarFormas = pedido.puede_indicar_forma && (!pedido.fk_idforma_pago_entrega || cambiar);
+  // Ya cobrado: se muestra lo cobrado y, con Cambiar, se corrige el cobro con la forma elegida.
+  const mostrarFormas = pedido.puede_indicar_forma && ((!pedido.fk_idforma_pago_entrega && !pedido.formas_cobradas) || cambiar);
+  const seleccionada = pedido.formas_cobradas ? pedido.forma_cobrada_id : pedido.fk_idforma_pago_entrega;
   return (
     <article className={`dl-card${pedido.mio ? ' mine' : ''}`}>
       <header className="dl-card-head">
@@ -140,7 +142,8 @@ function PedidoCard({ pedido, formas, onAsignar, onForma, busy }) {
       {!pedido.mio && <button className="dl-primary" disabled={busy} onClick={() => onAsignar(pedido)}>🛵 Asignarme este pedido</button>}
       {pedido.mio && (
         <div className="dl-pay">
-          {pedido.formas_cobradas ? <p className="dl-pay-info ok">Cobrado: <b>{pedido.formas_cobradas}</b></p>
+          {pedido.formas_cobradas ? <p className="dl-pay-info ok">Cobrado: <b>{pedido.formas_cobradas}</b>
+                {pedido.puede_indicar_forma && !cambiar && <button className="dl-link" onClick={() => setCambiar(true)}>Cambiar</button>}</p>
             : pedido.rendido ? <p className="dl-pay-info ok">Rendido{pedido.forma_pago_entrega ? ` · ${pedido.forma_pago_entrega}` : ''}</p>
             : pedido.fk_idforma_pago_entrega && !cambiar ? (
               <p className="dl-pay-info">Paga con: <b>{pedido.forma_pago_entrega}</b>
@@ -148,10 +151,10 @@ function PedidoCard({ pedido, formas, onAsignar, onForma, busy }) {
             ) : null}
           {mostrarFormas && (
             <>
-              <p className="dl-pay-title">¿Cómo paga el cliente?</p>
+              <p className="dl-pay-title">{pedido.formas_cobradas ? '¿Con qué pagó el cliente? Se corrige el cobro.' : '¿Cómo paga el cliente?'}</p>
               <div className="dl-pay-options">
                 {formas.map(f => <button key={f.idforma_pago} disabled={busy}
-                  className={f.idforma_pago === pedido.fk_idforma_pago_entrega ? 'selected' : ''}
+                  className={f.idforma_pago === seleccionada ? 'selected' : ''}
                   onClick={async () => { if (await onForma(pedido, f)) setCambiar(false); }}>{f.nombre}</button>)}
               </div>
             </>
