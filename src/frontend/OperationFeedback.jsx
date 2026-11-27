@@ -161,8 +161,6 @@ function OperationFeedbackDialog({ feedback, onDismiss, onHold, onReplace }) {
   useEffect(() => {
     if (!feedback) return;
     if (feedback.phase === 'loading') dialogRef.current?.focus();
-    // En delivery se cobra al entregar: el foco va a PAGAR DESPUÉS.
-    else if (feedback.advance?.esDelivery && feedback.advance?.formas?.length) acceptRef.current?.focus();
     else (defaultPayRef.current || printRef.current || acceptRef.current)?.focus();
   }, [feedback]);
 
@@ -174,8 +172,6 @@ function OperationFeedbackDialog({ feedback, onDismiss, onHold, onReplace }) {
   const total = Number(advance?.total || 0);
   const forms = advance?.formas?.length ? [...advance.formas].sort((a, b) => Number(!!b.es_default) - Number(!!a.es_default)) : [];
   const defaultForm = forms.length ? defaultFormId(forms) : '';
-  // En delivery se cobra al entregar: PAGAR DESPUÉS es la acción principal (resaltada y con foco).
-  const payLaterFirst = !!advance?.esDelivery && forms.length > 0;
 
   // Un clic en la forma de pago cobra el total del pedido (pago + movimiento de caja).
   const pay = async (formId) => {
@@ -240,12 +236,12 @@ function OperationFeedbackDialog({ feedback, onDismiss, onHold, onReplace }) {
       {!loading && forms.length > 0 && <div className="operation-feedback-pay">
         <span>Cobrar {formatMoney(total)} con:</span>
         <div className="operation-feedback-pay-buttons" role="group" aria-label="Forma de pago">
-          {forms.map(f => { const fid = String(f.idforma_pago); return <button key={fid} ref={fid === defaultForm ? defaultPayRef : null} type="button" className={fid === defaultForm && !payLaterFirst ? 'primary' : 'secondary'} disabled={busy} onClick={() => pay(fid)}>{payingForm === fid ? 'COBRANDO…' : f.nombre.toUpperCase()}</button>; })}
+          {forms.map(f => { const fid = String(f.idforma_pago); return <button key={fid} ref={fid === defaultForm ? defaultPayRef : null} type="button" className={fid === defaultForm ? 'primary' : 'secondary'} disabled={busy} onClick={() => pay(fid)}>{payingForm === fid ? 'COBRANDO…' : f.nombre.toUpperCase()}</button>; })}
         </div>
         {error && <div className="operation-feedback-charge-error" role="alert">{error}</div>}
       </div>}
       {!loading && <div className="operation-feedback-actions">
-        <button ref={acceptRef} type="button" className={`${payLaterFirst || !(forms.length || feedback.printUrl) ? 'primary' : 'secondary'} operation-feedback-accept`} disabled={busy} onClick={forms.length ? payLater : onDismiss}>{forms.length ? 'PAGAR DESPUÉS' : 'ACEPTAR'}</button>
+        <button ref={acceptRef} type="button" className={`${!(forms.length || feedback.printUrl) ? 'primary' : 'secondary'} operation-feedback-accept`} disabled={busy} onClick={forms.length ? payLater : onDismiss}>{forms.length ? 'PAGAR DESPUÉS' : 'ACEPTAR'}</button>
         {feedback.invoice && <button type="button" className="secondary operation-feedback-print" disabled={busy} onClick={() => { onDismiss(); feedback.invoice(); }}>FACTURAR</button>}
         {feedback.printUrl && <TicketLink ref={forms.length ? null : printRef} className={`${forms.length ? 'secondary' : 'primary'} operation-feedback-print`} href={feedback.printUrl} onClick={onDismiss}>{feedback.printLabel || 'IMPRIMIR'}</TicketLink>}
         {/* Vista previa: abre el PDF en otra pestaña sin mandarlo a la impresora. */}
