@@ -42,3 +42,9 @@
 .confirm-dialog .operation-feedback-actions button { min-width: 150px; }
 .confirm-dialog-confirm { color: #a9442b; border-color: #efc7b9; }
 .confirm-dialog-confirm:hover { background: #fff0e8; }
+
+/* Datos de la operación (por ejemplo, la factura impresa: cliente, monto e impresora). */
+.operation-feedback-lines { display: grid; gap: 4px; margin: 8px 0 0; padding: 10px 12px; border-radius: 10px; background: #f6f8f7; text-align: left; font-size: 13px; }
+.operation-feedback-lines div { display: flex; justify-content: space-between; gap: 12px; }
+.operation-feedback-lines dt { color: #6b7a74; }
+.operation-feedback-lines dd { margin: 0; font-weight: 700; text-align: right; overflow-wrap: anywhere; }

@@ -170,7 +170,7 @@ function OperationFeedbackDialog({ feedback, onDismiss, onHold, onReplace }) {
 
   const { phase, message } = feedback;
   const loading = phase === 'loading';
-  const title = loading ? 'Procesando…' : phase === 'success' ? 'Operación correcta' : 'No se pudo completar';
+  const title = feedback.title ?? (loading ? 'Procesando…' : phase === 'success' ? 'Operación correcta' : 'No se pudo completar');
   const total = Number(advance?.total || 0);
   const forms = advance?.formas?.length ? [...advance.formas].sort((a, b) => Number(!!b.es_default) - Number(!!a.es_default)) : [];
   const defaultForm = forms.length ? defaultFormId(forms) : '';
@@ -236,6 +236,7 @@ function OperationFeedbackDialog({ feedback, onDismiss, onHold, onReplace }) {
       </div>
       <h2 id="operation-feedback-title">{title}</h2>
       <p id="operation-feedback-message" aria-live="polite">{message}</p>
+      {feedback.lines?.length > 0 && <dl className="operation-feedback-lines">{feedback.lines.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>}
       {!loading && forms.length > 0 && <div className="operation-feedback-pay">
         <span>Cobrar {formatMoney(total)} con:</span>
         <div className="operation-feedback-pay-buttons" role="group" aria-label="Forma de pago">

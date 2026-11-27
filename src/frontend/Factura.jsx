@@ -3,6 +3,7 @@ import TopbarSlot from './TopbarSlot.jsx';
 import { api, mutate } from './pedidos-api.js';
 import { formatMoney } from './formatters.js';
 import { imprimirFactura, impresoraFactura } from './terminal.js';
+import { useOperationFeedback } from './OperationFeedback.jsx';
 import './factura.css';
 
 const dateTime = value => value ? new Date(value).toLocaleString('es-PY', { dateStyle: 'short', timeStyle: 'short' }) : '—';
@@ -11,10 +12,22 @@ const emptyClient = { fk_idcliente: null, ruc: '', razon_social: '', direccion: 
 
 const Estado = ({ value }) => <span className={`invoice-state invoice-state-${value}`}>{ESTADOS[value] || value}</span>;
 
-// Imprime la hoja pre-impresa (impresora de factura de esta PC o PDF en el navegador) y devuelve el aviso a mostrar.
-async function imprimir(factura) {
-  const impresora = await imprimirFactura(factura.idfactura, `Factura ${factura.numero_completo}`);
-  return impresora ? `Factura ${factura.numero_completo} enviada a ${impresora}.` : 'Esta PC no tiene impresora de factura asignada: se abrió el PDF para imprimir.';
+// Imprime la hoja pre-impresa (impresora de factura de esta PC o PDF en el navegador) mostrando el aviso flotante:
+// «Imprimiendo…» y después, por 3 segundos, cliente, monto e impresora. Devuelve el aviso para la pantalla.
+async function imprimir(factura, feedback) {
+  const lines = [['Factura', factura.numero_completo], ['Cliente', `${factura.cliente_razon_social}${factura.cliente_ruc ? ` · RUC ${factura.cliente_ruc}` : ''}`],
+    ['Monto', formatMoney(factura.total)]];
+  const destino = impresoraFactura();
+  const id = feedback?.begin(destino ? `Enviando a ${destino}…` : 'Abriendo el PDF…');
+  try {
+    const impresora = await imprimirFactura(factura.idfactura, `Factura ${factura.numero_completo}`);
+    const message = impresora ? `Factura enviada a la impresora ${impresora}.` : 'Esta PC no tiene impresora de factura asignada: se abrió el PDF para imprimir.';
+    feedback?.succeed(id, message, { title: 'Imprimiendo factura', lines: [...lines, ['Impresora', impresora || 'Navegador (PDF)']], timeoutMs: 3000 });
+    return message;
+  } catch (cause) {
+    feedback?.fail(id, cause.message, { title: 'No se pudo imprimir la factura', lines });
+    throw cause;
+  }
 }
 
 function clientFrom(factura) {
@@ -64,6 +77,7 @@ function FacturaForm({ pedidoId, facturaId, onBack }) {
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [modo, setModo] = useState(null);
+  const feedback = useOperationFeedback();
   useEffect(() => { api('/api/facturas/config').then(data => setModo(data.modo_facturacion)).catch(() => setModo('preimpresa')); }, []);
 
   const show = data => { setFactura(data); setBorrador(null); setCliente(clientFrom(data)); };
@@ -108,11 +122,11 @@ function FacturaForm({ pedidoId, facturaId, onBack }) {
     show(data);
     // Pre-impresa: si esta PC tiene impresora de factura sale directo; si no, queda el botón (el navegador bloquea abrir el PDF solo).
     if (data.estado === 'emitida') {
-      if (impresoraFactura()) setNotice(await imprimir(data).catch(cause => { throw new Error(`Factura ${data.numero_completo} emitida, pero no se imprimió: ${cause.message}`); }));
+      if (impresoraFactura()) setNotice(await imprimir(data, feedback).catch(cause => { throw new Error(`Factura ${data.numero_completo} emitida, pero no se imprimió: ${cause.message}`); }));
       else setNotice(`Factura ${data.numero_completo} emitida. Tocá «Imprimir factura» para abrir la hoja.`);
     }
   });
-  const print = () => run(async () => setNotice(await imprimir(factura)));
+  const print = () => run(async () => setNotice(await imprimir(factura, feedback)));
   const post = (path, body) => run(async () => show(await mutate(`/api/facturas/${factura.idfactura}/${path}`, body)));
 
   if (loading) return <p className="muted">Cargando…</p>;
@@ -209,6 +223,7 @@ function FacturaLista({ onOpen }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
+  const feedback = useOperationFeedback();
 
   useEffect(() => {
     let live = true;
@@ -240,7 +255,7 @@ function FacturaLista({ onOpen }) {
           <td>{item.cliente_razon_social}<small>{item.cliente_ruc ? `RUC ${item.cliente_ruc}` : 'Sin RUC'}</small></td>
           <td className="numeric-cell"><strong>{formatMoney(item.total)}</strong></td>
           <td><Estado value={item.estado} /></td>
-          <td><div className="invoice-row-actions"><button type="button" className="edit-button" onClick={() => onOpen(item.idfactura)}>Ver</button>{item.cdc && <a className="edit-button" href={`/api/facturas/${item.idfactura}/kude.pdf`} target="_blank" rel="noopener noreferrer">Imprimir</a>}{item.estado === 'emitida' && <button type="button" className="edit-button" onClick={() => { setError(''); setNotice(''); imprimir(item).then(setNotice).catch(cause => setError(cause.message)); }}>Imprimir</button>}</div></td>
+          <td><div className="invoice-row-actions"><button type="button" className="edit-button" onClick={() => onOpen(item.idfactura)}>Ver</button>{item.cdc && <a className="edit-button" href={`/api/facturas/${item.idfactura}/kude.pdf`} target="_blank" rel="noopener noreferrer">Imprimir</a>}{item.estado === 'emitida' && <button type="button" className="edit-button" onClick={() => { setError(''); setNotice(''); imprimir(item, feedback).then(setNotice).catch(cause => setError(cause.message)); }}>Imprimir</button>}</div></td>
         </tr>)}
     </tbody></table></div>
     <div className="catalog-footer"><span>Página {page} de {data.totalPages}</span><button className="page-button" disabled={loading || page === 1} onClick={() => setPage(page - 1)}>Anterior</button><button className="page-button" disabled={loading || page >= data.totalPages} onClick={() => setPage(page + 1)}>Siguiente</button></div>
